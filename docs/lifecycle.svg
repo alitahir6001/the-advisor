@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="460" viewBox="0 0 720 460" role="img" aria-label="A workhorse session sends a question and context as JSON-RPC over stdio to advisor_server.py, which builds a prompt, picks a provider adapter, and calls the advisor model by subprocess or HTTPS. The reply returns to the workhorse, and every consult is appended to consult-log.jsonl.">
+  <defs>
+    <marker id="c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+    <rect x="250" y="40" width="240" height="56" rx="6" fill="#0F6E56"/>
+    <text x="370" y="60" fill="#E1F5EE" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">Workhorse session</text>
+    <text x="370" y="80" fill="#9FE1CB" font-size="12" text-anchor="middle" dominant-baseline="central">a cheaper model, mid-task</text>
+
+    <line x1="370" y1="96" x2="370" y2="118" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+
+    <rect x="250" y="126" width="240" height="56" rx="6" fill="#5F5E5A"/>
+    <text x="370" y="146" fill="#F1EFE8" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">JSON-RPC over stdio</text>
+    <text x="370" y="166" fill="#D3D1C7" font-size="12" text-anchor="middle" dominant-baseline="central">question + context</text>
+
+    <line x1="370" y1="182" x2="370" y2="204" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+
+    <rect x="250" y="212" width="240" height="56" rx="6" fill="#534AB7"/>
+    <text x="370" y="232" fill="#EEEDFE" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">advisor_server.py</text>
+    <text x="370" y="252" fill="#CECBF6" font-size="12" text-anchor="middle" dominant-baseline="central">builds prompt, picks route</text>
+
+    <line x1="246" y1="240" x2="226" y2="240" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+
+    <rect x="40" y="212" width="180" height="56" rx="6" fill="#5F5E5A"/>
+    <text x="130" y="232" fill="#F1EFE8" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">consult-log.jsonl</text>
+    <text x="130" y="252" fill="#D3D1C7" font-size="12" text-anchor="middle" dominant-baseline="central">one line per consult</text>
+
+    <line x1="370" y1="268" x2="370" y2="290" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+
+    <rect x="250" y="298" width="240" height="56" rx="6" fill="#534AB7"/>
+    <text x="370" y="318" fill="#EEEDFE" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">Provider adapter</text>
+    <text x="370" y="338" fill="#CECBF6" font-size="12" text-anchor="middle" dominant-baseline="central">subprocess or https POST</text>
+
+    <line x1="370" y1="354" x2="370" y2="376" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+
+    <rect x="250" y="384" width="240" height="56" rx="6" fill="#534AB7"/>
+    <text x="370" y="404" fill="#EEEDFE" font-size="14" font-weight="500" text-anchor="middle" dominant-baseline="central">Advisor model</text>
+    <text x="370" y="424" fill="#CECBF6" font-size="12" text-anchor="middle" dominant-baseline="central">stateless, fresh context</text>
+
+    <path d="M490 412 L580 412 L580 68 L498 68" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#c)"/>
+    <text x="540" y="52" fill="#888780" font-size="12" text-anchor="middle" dominant-baseline="central">reply</text>
+  </g>
+</svg>
