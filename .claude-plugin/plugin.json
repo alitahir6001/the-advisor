@@ -1,0 +1,11 @@
+{
+  "name": "the-advisor",
+  "description": "Second-opinion layer for Claude Code: a cheap workhorse model is obligated to consult a stronger advisor model before architectural or hard-to-reverse decisions. The advisor can be any provider (Claude, Gemini, OpenAI) — chosen by config, not code.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ali Tahir"
+  },
+  "homepage": "https://github.com/alitahir6001/the-advisor",
+  "license": "MIT",
+  "keywords": ["advisor", "mcp", "multi-model", "code-review", "second-opinion"]
+}

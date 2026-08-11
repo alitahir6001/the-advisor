@@ -1,0 +1,16 @@
+{
+  "name": "the-advisor",
+  "description": "The Advisor — a model-agnostic second-opinion layer for Claude Code.",
+  "owner": {
+    "name": "Ali Tahir",
+    "url": "https://github.com/alitahir6001"
+  },
+  "plugins": [
+    {
+      "name": "the-advisor",
+      "description": "A cheap workhorse model consults a stronger advisor model before hard-to-reverse decisions. Advisor provider is config, not code.",
+      "category": "workflow",
+      "source": "./"
+    }
+  ]
+}
