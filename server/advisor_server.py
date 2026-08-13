@@ -112,9 +112,9 @@ def run_cli(cmd):
         stdin=subprocess.DEVNULL,
     )
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"{cmd[0]} exited {proc.returncode}: {proc.stderr.strip()[:500]}"
-        )
+        # CLIs report auth failures on stdout, so stderr alone hides the cause.
+        detail = (proc.stderr.strip() or proc.stdout.strip())[:500]
+        raise RuntimeError(f"{cmd[0]} exited {proc.returncode}: {detail}")
     return proc.stdout.strip()
 
 

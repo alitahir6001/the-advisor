@@ -105,10 +105,25 @@ to avoid competing mandates.
 
 ## Troubleshooting
 
-**"Not logged in"** — the `anthropic-cli` provider needs the CLI itself authenticated,
-separately from your editor. Run `claude` → `/login`, or `claude setup-token` and export
-the result as `CLAUDE_CODE_OAUTH_TOKEN` in your shell profile. Consults fall back to the
-bundled agent meanwhile, so nothing breaks.
+**"Not logged in" / "OAuth session expired"** — the `anthropic-cli` provider needs the
+CLI itself authenticated, separately from your editor. Run `claude setup-token`.
+
+Exporting the token in `~/.zshrc` is not enough if you launch Claude Code as a desktop
+app: GUI apps don't source shell rc files, so the server and its subprocesses never see
+it. Add an `env` block to `~/.claude/settings.json` instead — it applies however the session
+was launched. It is a top-level key alongside the settings you already have, not a
+separate file:
+
+```json
+{
+  "model": "opus",
+  "env": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-..."
+  }
+}
+```
+
+Consults fall back to the bundled agent meanwhile, so nothing breaks.
 
 ## Credits
 
