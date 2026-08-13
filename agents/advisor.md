@@ -9,7 +9,7 @@ description: Second-opinion advisor gateway. You MUST get a second opinion
   is missing or errors. Send one focused question plus the minimal
   relevant context (include paths of the files that matter). Never
   consult for routine work.
-model: fable
+effort: high
 tools: Read, Grep, Glob
 ---
 

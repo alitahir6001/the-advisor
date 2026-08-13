@@ -101,8 +101,15 @@ def subprocess_env():
 
 
 def run_cli(cmd):
+    # stdin=DEVNULL matters: without it the child inherits this server's stdin,
+    # which is the live JSON-RPC pipe, and the CLI stalls waiting on it.
     proc = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=300, env=subprocess_env()
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=300,
+        env=subprocess_env(),
+        stdin=subprocess.DEVNULL,
     )
     if proc.returncode != 0:
         raise RuntimeError(
@@ -167,7 +174,8 @@ def _dispatch(provider, model, prompt):
             {"x-api-key": key, "anthropic-version": "2023-06-01"},
             {
                 "model": model,
-                "max_tokens": 2048,
+                # Advice runs long; 2048 truncated replies mid-Risks.
+                "max_tokens": 4096,
                 "system": ADVISOR_SYSTEM,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -247,8 +255,12 @@ def main():
         line = line.strip()
         if not line:
             continue
-        msg = json.loads(line)
-        if "id" not in msg:
+        # A malformed line must not kill the server for the whole session.
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(msg, dict) or "id" not in msg:
             continue
         result = handle(msg)
         if result is None:

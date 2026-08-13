@@ -34,6 +34,11 @@ your workhorse. Edit the plugin's `.mcp.json`:
 | `ADVISOR_MODEL` | any model name your provider accepts |
 | `ADVISOR_LOG` | consult log path (defaults to the plugin's data directory) |
 
+The `anthropic-api` and `openai-api` adapters are written but untested — no API keys on
+the author's machine. The two CLI adapters are exercised regularly. The consult log
+stores questions, context, and replies verbatim, so treat it as you would your own
+notes.
+
 The `*-cli` providers shell out to a vendor CLI you're already signed into, billing your
 existing subscription. The `*-api` providers use `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
 and bill credits.
@@ -75,7 +80,7 @@ python3 server/consults.py --stats    # counts by provider and day
 
 | Component | Role |
 |---|---|
-| `agents/advisor.md` | Carries the escalation rule and routes consults. Always in context. |
+| `agents/advisor.md` | Carries the escalation rule and routes consults. Always in context. Used as the fallback advisor when the MCP tool is unavailable — it runs on your default subagent model, so the MCP route is the real cross-model path. |
 | `server/advisor_server.py` | The `consult_advisor` MCP tool. Preferred route — honors your provider config. |
 | `skills/` | `/advisor` for direct questions, `/consult-advisor-cli` for one-off vendor calls. |
 
