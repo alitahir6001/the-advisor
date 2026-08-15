@@ -211,6 +211,11 @@ class TestProviderDispatch(unittest.TestCase):
                     self.assertNotIn("max_tokens", body)
 
         # Misconfiguration fails loudly, and names what to fix.
+        with env(ADVISOR_PROVIDER="openai-compatible", ADVISOR_MODEL="m"), temp_log():
+            with self.assertRaises(RuntimeError) as e:
+                adv.consult("q", "c")
+            self.assertIn("ADVISOR_BASE_URL", str(e.exception))
+
         with env(ADVISOR_PROVIDER="claude-4-opus"), temp_log():
             with self.assertRaises(RuntimeError) as e:
                 adv.consult("q", "c")
@@ -232,6 +237,88 @@ class TestProviderDispatch(unittest.TestCase):
                 self.assertIn(keyvar, str(e.exception))
 
 
+class TestByoEndpoint(unittest.TestCase):
+    """Any OpenAI-compatible host, local included, with no vendor key."""
+
+    def test_base_url_redirects_and_makes_the_key_optional(self):
+        ollama = "http://localhost:11434/v1"
+        body = json.dumps({"choices": [{"message": {"content": "advice"}}]})
+
+        # A local server needs no key, and must not be sent an empty one.
+        for provider in ("openai-compatible", "openai-api"):
+            with self.subTest(provider=provider), \
+                    env(ADVISOR_PROVIDER=provider, ADVISOR_MODEL="gemma3:latest",
+                        ADVISOR_BASE_URL=ollama), temp_log(), \
+                    mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+                urlopen.return_value = FakeResponse(body)
+                self.assertEqual(adv.consult("q", "c"), "advice")
+
+            req = urlopen.call_args.args[0]
+            self.assertEqual(req.full_url, ollama + "/chat/completions")
+            sent = {k.lower() for k in req.headers}
+            self.assertNotIn("authorization", sent)
+
+        # A trailing slash must not produce a doubled one.
+        with env(ADVISOR_PROVIDER="openai-compatible", ADVISOR_MODEL="m",
+                 ADVISOR_BASE_URL=ollama + "/"), temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            urlopen.return_value = FakeResponse(body)
+            adv.consult("q", "c")
+        self.assertEqual(urlopen.call_args.args[0].full_url,
+                         ollama + "/chat/completions")
+
+        # A key is still sent when one is supplied (gateways like OpenRouter).
+        with env(ADVISOR_PROVIDER="openai-compatible", ADVISOR_MODEL="m",
+                 ADVISOR_BASE_URL="https://openrouter.ai/api/v1",
+                 OPENAI_API_KEY="k"), temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            urlopen.return_value = FakeResponse(body)
+            adv.consult("q", "c")
+        sent = {k.lower(): v for k, v in urlopen.call_args.args[0].headers.items()}
+        self.assertEqual(sent["authorization"], "Bearer k")
+
+        # The Anthropic path redirects too, for proxies and gateways.
+        with env(ADVISOR_PROVIDER="anthropic-api", ADVISOR_MODEL="m",
+                 ADVISOR_BASE_URL="https://proxy.internal/v1"), temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            urlopen.return_value = FakeResponse(
+                json.dumps({"content": [{"type": "text", "text": "advice"}]}))
+            self.assertEqual(adv.consult("q", "c"), "advice")
+        self.assertEqual(urlopen.call_args.args[0].full_url,
+                         "https://proxy.internal/v1/messages")
+
+
+class TestStandaloneCli(unittest.TestCase):
+    """Entry point for workhorses that speak no MCP at all."""
+
+    def test_one_shot_consult_prints_reply_and_reports_failure(self):
+        with env(ADVISOR_PROVIDER="anthropic-cli"), temp_log(), \
+                mock.patch.object(adv, "_dispatch", return_value="advice"), \
+                mock.patch.object(sys, "stdout", io.StringIO()) as out:
+            code = adv.ask_once(["why a queue?", "options: a, b"])
+        self.assertEqual(code, 0)
+        self.assertEqual(out.getvalue(), "advice\n")
+
+        # Context is optional.
+        with env(ADVISOR_PROVIDER="anthropic-cli"), temp_log(), \
+                mock.patch.object(adv, "_dispatch", return_value="advice") as d, \
+                mock.patch.object(sys, "stdout", io.StringIO()):
+            adv.ask_once(["just the question"])
+        self.assertIn("just the question", d.call_args.args[2])
+        self.assertNotIn("Context:", d.call_args.args[2])
+
+        # Failure goes to stderr with a non-zero exit, so callers can branch.
+        with env(ADVISOR_PROVIDER="anthropic-cli"), temp_log(), \
+                mock.patch.object(adv, "_dispatch",
+                                  side_effect=RuntimeError("no auth")), \
+                mock.patch.object(sys, "stdout", io.StringIO()) as out, \
+                mock.patch.object(sys, "stderr", io.StringIO()) as err:
+            code = adv.ask_once(["q"])
+        self.assertEqual(code, 1)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("no auth", err.getvalue())
+
+
 class TestCliInvocation(unittest.TestCase):
     """Three fixes with no visible marker: session isolation, stdin, error text."""
 
@@ -239,7 +326,7 @@ class TestCliInvocation(unittest.TestCase):
         parent = {
             "CLAUDE_CODE_ENTRYPOINT": "cli",
             "CLAUDECODE": "1",
-            "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-secret",
+            "CLAUDE_CODE_OAUTH_TOKEN": "fake-token-not-a-real-key",
             "PATH": "/usr/bin",
         }
         with env(ADVISOR_PROVIDER="anthropic-cli"), temp_log(), \
@@ -254,7 +341,7 @@ class TestCliInvocation(unittest.TestCase):
         self.assertNotIn("CLAUDE_CODE_ENTRYPOINT", child)
         self.assertNotIn("CLAUDECODE", child)
         # ...except the token, which is the entire auth for this provider.
-        self.assertEqual(child["CLAUDE_CODE_OAUTH_TOKEN"], "sk-ant-oat01-secret")
+        self.assertEqual(child["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token-not-a-real-key")
         self.assertEqual(child["PATH"], "/usr/bin")
         # Without DEVNULL the child inherits our live JSON-RPC pipe and stalls.
         self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
