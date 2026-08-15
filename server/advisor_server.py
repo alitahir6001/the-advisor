@@ -192,6 +192,8 @@ def _dispatch(provider, model, prompt):
         {"authorization": f"Bearer {key}"},
         {
             "model": model,
+            # No max_tokens on purpose: optional here (unset means no cap), and
+            # newer models reject it in favour of max_completion_tokens.
             "messages": [
                 {"role": "system", "content": ADVISOR_SYSTEM},
                 {"role": "user", "content": prompt},
@@ -231,7 +233,8 @@ def handle(msg):
                 "protocolVersion", PROTOCOL_VERSION
             ),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "advisor", "version": "0.1.0"},
+            # Kept in step with .claude-plugin/plugin.json by the test suite.
+            "serverInfo": {"name": "advisor", "version": "0.1.3"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
