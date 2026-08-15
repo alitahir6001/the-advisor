@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
-"""Model-agnostic advisor MCP server (stdio transport, newline-delimited JSON-RPC).
+"""Advisor MCP server: stdio transport, newline-delimited JSON-RPC, one tool.
 
-Exposes one tool, consult_advisor. Which model answers is server config,
-invisible to the workhorse:
+Which model answers is server config (ADVISOR_*, see README), invisible to
+the workhorse. Stdlib only, so there is no install step.
 
-  ADVISOR_PROVIDER  anthropic-cli | gemini-cli | anthropic-api | openai-api
-  ADVISOR_MODEL     model for that provider. Set this to the strongest model
-                    you have. Unset on a CLI provider means the CLI's own
-                    default answers - which may be no stronger than the
-                    workhorse, defeating the point. Required for *-api.
-  ADVISOR_LOG       consult log path (default: beside this file)
-  ANTHROPIC_API_KEY / OPENAI_API_KEY  required by the *-api providers only
-
-CLI providers bill the vendor subscription; API providers bill credits.
-Pure stdlib on purpose: no install step on a new machine.
+    python3 advisor_server.py                  serve MCP on stdio
+    python3 advisor_server.py "q" ["context"]  one-shot, no MCP client needed
 """
 
 import datetime
@@ -45,7 +37,21 @@ TOOL_DESCRIPTION = (
 
 # No default model IDs on purpose: they go stale, and pinning one would
 # undercut the point of keeping the advisor identity in config.
-PROVIDERS = ("anthropic-cli", "gemini-cli", "anthropic-api", "openai-api")
+PROVIDERS = (
+    "anthropic-cli",
+    "gemini-cli",
+    "anthropic-api",
+    "openai-api",
+    "openai-compatible",
+)
+
+# openai-compatible is openai-api pointed elsewhere. Same wire format, so the
+# only real difference is that it has no default host and no implied vendor.
+API_BASES = {
+    "anthropic-api": "https://api.anthropic.com/v1",
+    "openai-api": "https://api.openai.com/v1",
+    "openai-compatible": None,
+}
 
 
 LOG_PATH = os.environ.get("ADVISOR_LOG") or os.path.join(
@@ -118,6 +124,25 @@ def run_cli(cmd):
     return proc.stdout.strip()
 
 
+def api_base(provider):
+    base = os.environ.get("ADVISOR_BASE_URL") or API_BASES[provider]
+    if not base:
+        raise RuntimeError(
+            "ADVISOR_BASE_URL must be set for provider openai-compatible "
+            "(e.g. http://localhost:11434/v1 for ollama)"
+        )
+    return base.rstrip("/")
+
+
+def api_key(var):
+    # Local servers behind ADVISOR_BASE_URL want no key, so only demand one
+    # when talking to the vendor's own host.
+    key = os.environ.get(var)
+    if not key and not os.environ.get("ADVISOR_BASE_URL"):
+        raise RuntimeError(f"{var} not set")
+    return key
+
+
 def http_json(url, headers, body):
     req = urllib.request.Request(
         url,
@@ -166,12 +191,16 @@ def _dispatch(provider, model, prompt):
         raise RuntimeError(f"ADVISOR_MODEL must be set for provider {provider}")
 
     if provider == "anthropic-api":
-        key = os.environ.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
+        # Base first: for a misconfigured provider the missing host is the
+        # more useful complaint than a key you may not even need.
+        base = api_base(provider)
+        key = api_key("ANTHROPIC_API_KEY")
+        headers = {"anthropic-version": "2023-06-01"}
+        if key:
+            headers["x-api-key"] = key
         data = http_json(
-            "https://api.anthropic.com/v1/messages",
-            {"x-api-key": key, "anthropic-version": "2023-06-01"},
+            base + "/messages",
+            headers,
             {
                 "model": model,
                 # Advice runs long; 2048 truncated replies mid-Risks.
@@ -184,12 +213,12 @@ def _dispatch(provider, model, prompt):
             b["text"] for b in data["content"] if b["type"] == "text"
         )
 
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+    base = api_base(provider)
+    key = api_key("OPENAI_API_KEY")
+    headers = {"authorization": f"Bearer {key}"} if key else {}
     data = http_json(
-        "https://api.openai.com/v1/chat/completions",
-        {"authorization": f"Bearer {key}"},
+        base + "/chat/completions",
+        headers,
         {
             "model": model,
             # No max_tokens on purpose: optional here (unset means no cap), and
@@ -234,7 +263,7 @@ def handle(msg):
             ),
             "capabilities": {"tools": {}},
             # Kept in step with .claude-plugin/plugin.json by the test suite.
-            "serverInfo": {"name": "advisor", "version": "0.1.4"},
+            "serverInfo": {"name": "advisor", "version": "0.1.5"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
@@ -278,5 +307,16 @@ def main():
         sys.stdout.flush()
 
 
+def ask_once(argv):
+    """One-shot consult for workhorses that speak no MCP."""
+    try:
+        sys.stdout.write(consult(argv[0], argv[1] if len(argv) > 1 else "") + "\n")
+    except Exception as e:
+        sys.stderr.write(f"Advisor error: {e}\n")
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    # Args mean one-shot; no args means serve MCP on stdio.
+    sys.exit(ask_once(sys.argv[1:]) if len(sys.argv) > 1 else main())
