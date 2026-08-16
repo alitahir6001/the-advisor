@@ -26,6 +26,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADVISOR_VARS = (
     "ADVISOR_PROVIDER",
     "ADVISOR_MODEL",
+    "ADVISOR_BASE_URL",
+    "ADVISOR_API_KEY",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
 )
@@ -235,6 +237,53 @@ class TestProviderDispatch(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as e:
                     adv.consult("q", "c")
                 self.assertIn(keyvar, str(e.exception))
+
+
+class TestUserConfigSubstitution(unittest.TestCase):
+    """An unset userConfig option arrives as "" in env, not absent (verified
+    against Claude Code 2.1.222). Empty must therefore mean unset everywhere."""
+
+    def test_blank_values_fall_back_and_never_shadow_the_shell(self):
+        # A blank provider is the default, not an unknown provider.
+        with env(ADVISOR_PROVIDER="", ADVISOR_MODEL="m"), temp_log(), \
+                mock.patch.object(adv.subprocess, "run") as run:
+            run.return_value = completed()
+            adv.consult("q", "c")
+        self.assertEqual(run.call_args.args[0][0], "claude")
+
+        body = json.dumps({"choices": [{"message": {"content": "advice"}}]})
+
+        # A blank ADVISOR_API_KEY must not shadow the shell's vendor key.
+        with env(ADVISOR_PROVIDER="openai-api", ADVISOR_MODEL="m",
+                 ADVISOR_API_KEY="", ADVISOR_BASE_URL="",
+                 OPENAI_API_KEY="from-shell"), temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            urlopen.return_value = FakeResponse(body)
+            adv.consult("q", "c")
+        sent = {k.lower(): v for k, v in urlopen.call_args.args[0].headers.items()}
+        self.assertEqual(sent["authorization"], "Bearer from-shell")
+
+        # Set in the GUI, it wins - that is the whole point of the option.
+        with env(ADVISOR_PROVIDER="openai-api", ADVISOR_MODEL="m",
+                 ADVISOR_API_KEY="from-gui", OPENAI_API_KEY="from-shell"), \
+                temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            urlopen.return_value = FakeResponse(body)
+            adv.consult("q", "c")
+        sent = {k.lower(): v for k, v in urlopen.call_args.args[0].headers.items()}
+        self.assertEqual(sent["authorization"], "Bearer from-gui")
+
+    def test_manifest_options_and_mcp_env_agree(self):
+        with open(os.path.join(REPO_ROOT, ".claude-plugin", "plugin.json")) as f:
+            declared = set(json.load(f)["userConfig"])
+        with open(os.path.join(REPO_ROOT, ".mcp.json")) as f:
+            env_block = json.load(f)["mcpServers"]["advisor"]["env"]
+        referenced = {
+            v[len("${user_config."):-1]
+            for v in env_block.values()
+            if v.startswith("${user_config.")
+        }
+        self.assertEqual(declared, referenced)
 
 
 class TestByoEndpoint(unittest.TestCase):
