@@ -135,11 +135,14 @@ def api_base(provider):
 
 
 def api_key(var):
+    # ADVISOR_API_KEY first so a GUI-set userConfig value wins, then the vendor
+    # variable so existing shell setups keep working. Unset userConfig keys
+    # arrive as "", which is why empty is treated as absent, not as a key.
     # Local servers behind ADVISOR_BASE_URL want no key, so only demand one
     # when talking to the vendor's own host.
-    key = os.environ.get(var)
+    key = os.environ.get("ADVISOR_API_KEY") or os.environ.get(var)
     if not key and not os.environ.get("ADVISOR_BASE_URL"):
-        raise RuntimeError(f"{var} not set")
+        raise RuntimeError(f"neither ADVISOR_API_KEY nor {var} is set")
     return key
 
 
@@ -155,7 +158,8 @@ def http_json(url, headers, body):
 
 
 def consult(question, context):
-    provider = os.environ.get("ADVISOR_PROVIDER", "anthropic-cli")
+    # `or` not a get() default: an unset userConfig key substitutes as "".
+    provider = os.environ.get("ADVISOR_PROVIDER") or "anthropic-cli"
     if provider not in PROVIDERS:
         raise RuntimeError(
             f"unknown ADVISOR_PROVIDER {provider!r}; expected one of "
