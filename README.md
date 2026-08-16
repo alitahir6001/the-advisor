@@ -23,49 +23,69 @@ Three steps. Requires `python3` — standard library only, nothing to install.
 /plugin install the-advisor@the-advisor
 ```
 
-**2. Name your advisor.** Open this file:
+**2. Name your advisor.** Pick the strongest model you have access to:
 
 ```
-~/.claude/plugins/cache/the-advisor/the-advisor/<version>/.mcp.json
+/plugin configure the-advisor@the-advisor
 ```
 
-Set `ADVISOR_MODEL` to the strongest model you have, then restart Claude Code:
+Or set it at install time, no restart needed:
 
-```json
-"ADVISOR_MODEL": "opus"
+```bash
+claude plugin install the-advisor@the-advisor --config advisor_model=claude-opus-5
 ```
 
-It ships empty, which falls back to your CLI's default — possibly no stronger than your
-workhorse, which defeats the point. This is the one step you shouldn't skip.
+This is the one step you shouldn't skip. Left blank, the `*-cli` providers fall back to
+the CLI's own default — possibly no stronger than your workhorse, which defeats the point.
 
 **3. Pick a cheap workhorse.** Run `/model`, choose something fast.
 
 That's it. Consults now go to the strong model, everything else stays cheap.
 
+## Model names
+
+Model names are not validated here — they're passed straight to your provider, so a typo
+fails on the first consult with that vendor's error. Names change often; check the source:
+
+| Advisor | Current model names | Example |
+|---|---|---|
+| Claude | [platform.claude.com/docs/…/models/overview](https://platform.claude.com/docs/en/about-claude/models/overview) | `claude-opus-5` |
+| Gemini | [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models) | `gemini-3.1-pro-preview` |
+| OpenAI | [developers.openai.com/api/docs/models](https://developers.openai.com/api/docs/models) | `gpt-5.6` |
+| Local | `ollama list`, or your server's model list | `gemma3:latest` |
+
+Examples as of August 2026. The `*-cli` providers also accept that CLI's own short
+aliases, such as `opus` or `sonnet` for Claude.
+
 ## Using a different advisor
 
-Step 2 assumes Claude. To point the advisor somewhere else, set `ADVISOR_PROVIDER` in the
-same file:
+Step 2 assumes Claude. To point the advisor somewhere else, set `advisor_provider` in the
+same `/plugin configure` screen:
 
-| Advisor | `ADVISOR_PROVIDER` | Also set |
+| Advisor | `advisor_provider` | Also set |
 |---|---|---|
-| Claude, via your subscription | `anthropic-cli` (default) | `ADVISOR_MODEL=opus` |
-| Gemini, via your subscription | `gemini-cli` | `ADVISOR_MODEL=gemini-2.5-pro` |
-| Claude, via API credits | `anthropic-api` | `ANTHROPIC_API_KEY`, `ADVISOR_MODEL` |
-| GPT, via API credits | `openai-api` | `OPENAI_API_KEY`, `ADVISOR_MODEL` |
-| **Local model** (ollama, LM Studio, vLLM) | `openai-compatible` | `ADVISOR_BASE_URL`, `ADVISOR_MODEL` |
-| Gateway (OpenRouter, Groq, Together) | `openai-compatible` | `ADVISOR_BASE_URL`, `OPENAI_API_KEY`, `ADVISOR_MODEL` |
+| Claude, via your subscription | `anthropic-cli` (default) | `advisor_model` |
+| Gemini, via your subscription | `gemini-cli` | `advisor_model` |
+| Claude, via API credits | `anthropic-api` | `advisor_model`, `advisor_api_key` |
+| GPT, via API credits | `openai-api` | `advisor_model`, `advisor_api_key` |
+| **Local model** (ollama, LM Studio, vLLM) | `openai-compatible` | `advisor_model`, `advisor_base_url` |
+| Gateway (OpenRouter, Groq, Together) | `openai-compatible` | `advisor_model`, `advisor_base_url`, `advisor_api_key` |
 
 A local advisor needs no API key:
 
-```json
-"ADVISOR_PROVIDER": "openai-compatible",
-"ADVISOR_BASE_URL": "http://localhost:11434/v1",
-"ADVISOR_MODEL": "gemma3:latest"
+```bash
+claude plugin install the-advisor@the-advisor \
+  --config advisor_provider=openai-compatible \
+  --config advisor_base_url=http://localhost:11434/v1 \
+  --config advisor_model=gemma3:latest
 ```
 
-`ADVISOR_BASE_URL` works with `openai-api` and `anthropic-api` too, if you route through a
+`advisor_base_url` works with `openai-api` and `anthropic-api` too, if you route through a
 proxy. Setting it makes the API key optional.
+
+Leaving `advisor_api_key` blank falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` from
+your shell — so existing terminal setups keep working, and the desktop app (which never
+reads your shell profile) has somewhere to put a key.
 
 ## Using a different workhorse
 
@@ -122,11 +142,16 @@ python3 server/consults.py --stats    # counts by provider and day
 
 ### Other settings
 
-| Variable | Values |
-|---|---|
-| `ADVISOR_MODEL` | any model name your provider accepts |
-| `ADVISOR_BASE_URL` | API root override; makes the API key optional |
-| `ADVISOR_LOG` | consult log path (defaults to the plugin's data directory) |
+Everything is settable through `/plugin configure`. The server also reads the same values
+straight from the environment, which is how the standalone and non-Claude-Code paths work:
+
+| Variable | `/plugin configure` option | Values |
+|---|---|---|
+| `ADVISOR_PROVIDER` | `advisor_provider` | one of the five providers above |
+| `ADVISOR_MODEL` | `advisor_model` | any model name your provider accepts |
+| `ADVISOR_BASE_URL` | `advisor_base_url` | API root override; makes the API key optional |
+| `ADVISOR_API_KEY` | `advisor_api_key` | falls back to the vendor's own key variable |
+| `ADVISOR_LOG` | — | consult log path (defaults to the plugin's data directory) |
 
 `*-cli` providers shell out to a CLI you're signed into, billing your subscription.
 `*-api` providers bill credits. The vendor API paths have test coverage but no live call
