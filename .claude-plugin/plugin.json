@@ -7,5 +7,33 @@
   },
   "homepage": "https://github.com/alitahir6001/the-advisor",
   "license": "MIT",
-  "keywords": ["advisor", "mcp", "multi-model", "code-review", "second-opinion"]
+  "keywords": ["advisor", "mcp", "multi-model", "code-review", "second-opinion"],
+  "userConfig": {
+    "advisor_model": {
+      "type": "string",
+      "title": "Advisor model",
+      "required": true,
+      "description": "The strongest model you have access to. Examples: claude-opus-5, gemini-3.1-pro-preview, gpt-5.6, gemma3:latest. Must be a name your provider accepts — see the model-name links in the README.",
+      "default": ""
+    },
+    "advisor_provider": {
+      "type": "string",
+      "title": "Advisor provider",
+      "description": "One of: anthropic-cli, gemini-cli, anthropic-api, openai-api, openai-compatible. The *-cli options bill your existing subscription.",
+      "default": "anthropic-cli"
+    },
+    "advisor_base_url": {
+      "type": "string",
+      "title": "Advisor base URL",
+      "description": "Only for local models or gateways, e.g. http://localhost:11434/v1 for ollama. Leave blank for Claude, Gemini, or OpenAI.",
+      "default": ""
+    },
+    "advisor_api_key": {
+      "type": "string",
+      "title": "Advisor API key",
+      "sensitive": true,
+      "description": "Only for the *-api providers. Leave blank to use ANTHROPIC_API_KEY / OPENAI_API_KEY from your shell instead.",
+      "default": ""
+    }
+  }
 }
