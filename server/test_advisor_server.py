@@ -5,13 +5,14 @@ Stdlib only, to match the server's no-install promise:
 
     python3 -m unittest discover -s server -p 'test_*.py' -v
 
-Five tests, one per concern. Nothing here touches the network, a vendor CLI,
+Nine tests, one per concern. Nothing here touches the network, a vendor CLI,
 or the real consult log.
 """
 
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -273,16 +274,15 @@ class TestUserConfigSubstitution(unittest.TestCase):
         sent = {k.lower(): v for k, v in urlopen.call_args.args[0].headers.items()}
         self.assertEqual(sent["authorization"], "Bearer from-gui")
 
-    def test_manifest_options_and_mcp_env_agree(self):
+    def test_manifest_options_and_mcp_config_agree(self):
+        """Every declared option is wired up, and nothing references an option
+        that no longer exists. `command` counts too, not just `env`."""
         with open(os.path.join(REPO_ROOT, ".claude-plugin", "plugin.json")) as f:
             declared = set(json.load(f)["userConfig"])
         with open(os.path.join(REPO_ROOT, ".mcp.json")) as f:
-            env_block = json.load(f)["mcpServers"]["advisor"]["env"]
-        referenced = {
-            v[len("${user_config."):-1]
-            for v in env_block.values()
-            if v.startswith("${user_config.")
-        }
+            server = json.load(f)["mcpServers"]["advisor"]
+        blob = json.dumps(server)
+        referenced = set(re.findall(r"\$\{user_config\.([^}]+)\}", blob))
         self.assertEqual(declared, referenced)
 
 
