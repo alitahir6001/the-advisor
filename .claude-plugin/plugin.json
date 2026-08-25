@@ -34,6 +34,12 @@
       "sensitive": true,
       "description": "Only for the *-api providers. Leave blank to use ANTHROPIC_API_KEY / OPENAI_API_KEY from your shell instead.",
       "default": ""
+    },
+    "python_command": {
+      "type": "string",
+      "title": "Python command",
+      "description": "How python3 is invoked on your system. Leave as python3 on macOS and Linux. On Windows set this to python or py — python3 does not exist there.",
+      "default": "python3"
     }
   }
 }

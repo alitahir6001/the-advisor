@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "advisor": {
-      "command": "python3",
+      "command": "${user_config.python_command}",
       "args": ["${CLAUDE_PLUGIN_ROOT}/server/advisor_server.py"],
       "env": {
         "ADVISOR_PROVIDER": "${user_config.advisor_provider}",
