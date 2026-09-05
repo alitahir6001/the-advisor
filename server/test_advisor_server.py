@@ -129,7 +129,7 @@ class TestJsonRpcLoop(unittest.TestCase):
         self.assertEqual(tools[0]["inputSchema"]["required"], ["question"])
 
         ok = by_id[3]["result"]
-        self.assertEqual(ok["content"][0]["text"], "advice")
+        self.assertTrue(ok["content"][0]["text"].endswith("\n\nadvice"))
         self.assertNotIn("isError", ok)
 
         self.assertEqual(by_id[4]["error"]["code"], -32601)
@@ -169,7 +169,7 @@ class TestProviderDispatch(unittest.TestCase):
                 with env(**overrides), temp_log(), \
                         mock.patch.object(adv.subprocess, "run",
                                           return_value=completed()) as run:
-                    self.assertEqual(adv.consult("q", "c"), "advice")
+                    self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
                 self.assertEqual(run.call_args.args[0], expected)
 
         api_cases = [
@@ -199,7 +199,7 @@ class TestProviderDispatch(unittest.TestCase):
                         mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
                     urlopen.return_value = FakeResponse(json.dumps(case["body"]))
                     # Only text blocks survive; other block types are dropped.
-                    self.assertEqual(adv.consult("q", "c"), "advice")
+                    self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
 
                 req = urlopen.call_args.args[0]
                 self.assertEqual(req.full_url, case["url"])
@@ -270,11 +270,41 @@ class TestModelIsRequired(unittest.TestCase):
                  ADVISOR_MODEL=adv.CLI_DEFAULT), temp_log() as log, \
                 mock.patch.object(adv.subprocess, "run",
                                   return_value=completed()) as run:
-            self.assertEqual(adv.consult("q", "c"), "advice")
+            self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
             entries = log_entries(log)  # read before the temp dir goes away
         self.assertNotIn("--model", run.call_args.args[0])
         # Logged as the sentinel, never as null - null is what hid this bug.
         self.assertEqual(entries[0]["model"], adv.CLI_DEFAULT)
+
+
+class TestAttributionHeader(unittest.TestCase):
+    """Every reply says which model answered. A consult that silently ran the
+    wrong model used to look identical to a correct one."""
+
+    def test_header_names_both_models_and_log_stays_clean(self):
+        with env(ADVISOR_PROVIDER="anthropic-cli", ADVISOR_MODEL="big"), \
+                temp_log() as log, \
+                mock.patch.object(adv.subprocess, "run",
+                                  return_value=completed()) as run:
+            out = adv.consult("q", "c", "haiku-workhorse")
+            entries = log_entries(log)
+
+        first, second, blank, body = out.split("\n", 3)
+        self.assertIn("big", first)
+        self.assertIn("anthropic-cli", first)
+        self.assertIn("haiku-workhorse", second)
+        self.assertEqual(body, "advice")
+        # The header is presentation only - the log keeps the raw reply, and
+        # the advisor is never asked to produce it.
+        self.assertEqual(entries[0]["reply"], "advice")
+        self.assertNotIn("Workhorse", run.call_args.args[0][-1])
+
+        # An unreported workhorse says so rather than inventing one.
+        with env(ADVISOR_PROVIDER="anthropic-cli", ADVISOR_MODEL="big"), \
+                temp_log(), \
+                mock.patch.object(adv.subprocess, "run",
+                                  return_value=completed()):
+            self.assertIn("Workhorse = not reported", adv.consult("q", "c"))
 
 
 class TestUserConfigSubstitution(unittest.TestCase):
@@ -337,7 +367,7 @@ class TestByoEndpoint(unittest.TestCase):
                         ADVISOR_BASE_URL=ollama), temp_log(), \
                     mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
                 urlopen.return_value = FakeResponse(body)
-                self.assertEqual(adv.consult("q", "c"), "advice")
+                self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
 
             req = urlopen.call_args.args[0]
             self.assertEqual(req.full_url, ollama + "/chat/completions")
@@ -369,7 +399,7 @@ class TestByoEndpoint(unittest.TestCase):
                 mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
             urlopen.return_value = FakeResponse(
                 json.dumps({"content": [{"type": "text", "text": "advice"}]}))
-            self.assertEqual(adv.consult("q", "c"), "advice")
+            self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
         self.assertEqual(urlopen.call_args.args[0].full_url,
                          "https://proxy.internal/v1/messages")
 
@@ -383,7 +413,7 @@ class TestStandaloneCli(unittest.TestCase):
                 mock.patch.object(sys, "stdout", io.StringIO()) as out:
             code = adv.ask_once(["why a queue?", "options: a, b"])
         self.assertEqual(code, 0)
-        self.assertEqual(out.getvalue(), "advice\n")
+        self.assertTrue(out.getvalue().endswith("\n\nadvice\n"))
 
         # Context is optional.
         with env(ADVISOR_PROVIDER="anthropic-cli"), temp_log(), \
@@ -474,7 +504,8 @@ class TestPromptAndLog(unittest.TestCase):
                 temp_log() as log, \
                 mock.patch.object(adv.subprocess, "run",
                                   return_value=completed(stdout=reply)):
-            self.assertEqual(adv.consult("why a queue?", "options: a, b"), reply)
+            self.assertTrue(
+            adv.consult("why a queue?", "options: a, b").endswith("\n\n" + reply))
 
             entry, = log_entries(log)
             # Verbatim on purpose: summaries drop the conditional caveats.
@@ -502,7 +533,7 @@ class TestPromptAndLog(unittest.TestCase):
                 mock.patch.object(adv, "LOG_PATH", unwritable), \
                 mock.patch.object(adv.subprocess, "run",
                                   return_value=completed(stdout="advice")):
-            self.assertEqual(adv.consult("q", "c"), "advice")
+            self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
 
 
 class TestVersion(unittest.TestCase):

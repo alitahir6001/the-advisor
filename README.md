@@ -60,6 +60,14 @@ Three ways in, all typed into Claude Code:
 /consult is a queue the right call here, or am I overbuilding?
 ```
 
+Every reply names who answered, so a consult that quietly ran the wrong model can't
+look like a correct one:
+
+```
+Advisor   = claude-fable-5 (anthropic-cli)
+Workhorse = claude-haiku-4-5
+```
+
 **Or let it escalate on its own.** Just work — the bundled agent consults before
 architectural calls, after the same fix fails twice, and on tradeoffs it can't settle
 alone. It stays quiet on routine work.
@@ -73,8 +81,8 @@ vendor's CLI installed and signed in:
 
 ### Check it worked
 
-A consult on the wrong model looks exactly like one on the right model. The log tells them
-apart. Ask the advisor anything, then:
+The header above is the quick check. The log is the durable one — it records every consult
+with the model that answered:
 
 ```bash
 cd ~/.claude/plugins/cache/the-advisor/the-advisor/0.1.5/server
