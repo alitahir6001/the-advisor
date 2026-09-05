@@ -90,6 +90,17 @@ def log_consult(provider, model, question, context, reply, error, start):
         pass
 
 
+def attribution(provider, model, workhorse):
+    # Printed on every reply: a consult that silently ran the wrong model used
+    # to be indistinguishable from a correct one. The workhorse cannot be
+    # detected from here - Claude Code puts no model in the server's env - so
+    # it is whatever the caller reported, or nothing.
+    return (
+        f"Advisor   = {model} ({provider})\n"
+        f"Workhorse = {workhorse or 'not reported'}"
+    )
+
+
 def build_prompt(question, context):
     parts = [ADVISOR_SYSTEM, "Question:\n" + question]
     if context:
@@ -161,7 +172,7 @@ def http_json(url, headers, body):
         return json.load(resp)
 
 
-def consult(question, context):
+def consult(question, context, workhorse=None):
     # `or` not a get() default: an unset userConfig key substitutes as "".
     provider = os.environ.get("ADVISOR_PROVIDER") or "anthropic-cli"
     if provider not in PROVIDERS:
@@ -186,7 +197,7 @@ def consult(question, context):
     try:
         reply = _dispatch(provider, model, prompt)
         log_consult(provider, model, question, context, reply, None, start)
-        return reply
+        return attribution(provider, model, workhorse) + "\n\n" + reply
     except Exception as e:
         log_consult(provider, model, question, context, None, str(e), start)
         raise
@@ -273,6 +284,13 @@ TOOL = {
                 "and repo-relative paths of the relevant files. Non-Claude "
                 "advisors cannot read files - this field is all they see.",
             },
+            "workhorse_model": {
+                "type": "string",
+                "description": "The model YOU are running as, e.g. "
+                "claude-haiku-4-5. Echoed back in the reply header so the user "
+                "can see advisor and workhorse are not the same model. Say so "
+                "plainly if you are unsure rather than guessing.",
+            },
         },
         "required": ["question"],
     },
@@ -295,7 +313,11 @@ def handle(msg):
     if method == "tools/call":
         args = msg["params"].get("arguments", {})
         try:
-            text = consult(args.get("question", ""), args.get("context", ""))
+            text = consult(
+                args.get("question", ""),
+                args.get("context", ""),
+                args.get("workhorse_model"),
+            )
             return {"content": [{"type": "text", "text": text}]}
         except Exception as e:
             return {

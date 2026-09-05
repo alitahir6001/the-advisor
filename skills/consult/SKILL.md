@@ -18,3 +18,12 @@ description: Ask the advisor a direct question on the user's behalf. Use
    the advisor subagent otherwise.
 3. Relay the advisor's reply to the user in full — do not compress it.
    Add your own take afterward only where it differs, clearly labeled.
+
+## Report your own model
+
+Pass `workhorse_model` on every call - the model YOU are running as. The
+reply's header prints advisor and workhorse side by side so the user can see
+they are not the same model. If you do not know your own model, omit the
+field; the header then says "not reported". Never guess it.
+
+Show the header verbatim. Do not summarise it away.
