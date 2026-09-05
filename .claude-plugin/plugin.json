@@ -1,19 +1,19 @@
 {
   "name": "the-advisor",
   "description": "Second-opinion layer for Claude Code: a cheap workhorse model is obligated to consult a stronger advisor model before architectural or hard-to-reverse decisions. The advisor can be any provider — Claude, Gemini, OpenAI, or a local model via any OpenAI-compatible endpoint — chosen by config, not code.",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "author": {
-    "name": "Ali Tahir"
+    "name": "drpakfro"
   },
   "homepage": "https://github.com/alitahir6001/the-advisor",
   "license": "MIT",
-  "keywords": ["advisor", "mcp", "multi-model", "code-review", "second-opinion"],
+  "keywords": ["advisor", "mcp", "multi-model", "workhorse", "pattern", "code-review", "second-opinion"],
   "userConfig": {
     "advisor_model": {
       "type": "string",
       "title": "Advisor model",
       "required": true,
-      "description": "The strongest model you have access to. Examples: claude-opus-5, gemini-3.1-pro-preview, gpt-5.6, gemma3:latest. Must be a name your provider accepts — see the model-name links in the README.",
+      "description": "The strongest model you have access to. Must be a name your provider accepts — see example model-name links in the README. Set it to cli-default only if you deliberately want your CLI's own default model.",
       "default": ""
     },
     "advisor_provider": {
