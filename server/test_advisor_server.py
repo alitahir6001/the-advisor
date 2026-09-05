@@ -307,6 +307,51 @@ class TestAttributionHeader(unittest.TestCase):
             self.assertIn("Workhorse = not reported", adv.consult("q", "c"))
 
 
+class TestProviderInference(unittest.TestCase):
+    """Provider is auto-detected from the model name when not set explicitly."""
+
+    def test_inference_from_model_prefix_and_base_url(self):
+        cases = [
+            ("claude-opus-5", "", "anthropic-cli"),
+            ("claude-fable-5-1", "", "anthropic-cli"),
+            ("opus", "", "anthropic-cli"),
+            ("gemini-3.1-pro-preview", "", "gemini-cli"),
+            ("gemini_2.5-flash", "", "gemini-cli"),
+            ("gpt-5.6", "", "openai-api"),
+            ("o3-mini", "", "openai-api"),
+            ("o4-mini", "", "openai-api"),
+            ("chatgpt-4o-latest", "", "openai-api"),
+            (adv.CLI_DEFAULT, "", "anthropic-cli"),
+            ("unknown-model", "", "anthropic-cli"),
+            # A base URL is the strongest signal: always openai-compatible.
+            ("gemma3:latest", "http://localhost:11434/v1", "openai-compatible"),
+            ("claude-opus-5", "http://proxy.internal/v1", "openai-compatible"),
+        ]
+        for model, base_url, expected in cases:
+            with self.subTest(model=model, base_url=base_url):
+                self.assertEqual(adv.infer_provider(model, base_url), expected)
+
+    def test_explicit_provider_overrides_inference(self):
+        # A Gemini model with an explicit anthropic-cli provider: the explicit
+        # value wins, even though inference would say gemini-cli.
+        with env(ADVISOR_PROVIDER="anthropic-cli",
+                 ADVISOR_MODEL="gemini-3.1-pro"), temp_log(), \
+                mock.patch.object(adv.subprocess, "run",
+                                  return_value=completed()) as run:
+            adv.consult("q", "c")
+        self.assertEqual(run.call_args.args[0][0], "claude")
+
+    def test_blank_provider_triggers_inference(self):
+        with env(ADVISOR_PROVIDER="", ADVISOR_MODEL="gpt-5.6",
+                 OPENAI_API_KEY="k"), temp_log(), \
+                mock.patch.object(adv.urllib.request, "urlopen") as urlopen:
+            body = {"choices": [{"message": {"content": "advice"}}]}
+            urlopen.return_value = FakeResponse(json.dumps(body))
+            result = adv.consult("q", "c")
+        self.assertTrue(result.endswith("\n\nadvice"))
+        self.assertIn("openai-api", result.split("\n")[0])
+
+
 class TestUserConfigSubstitution(unittest.TestCase):
     """An unset userConfig option arrives as "" in env, not absent (verified
     against Claude Code 2.1.222). Empty must therefore mean unset everywhere."""
