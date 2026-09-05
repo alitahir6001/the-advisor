@@ -35,6 +35,10 @@ TOOL_DESCRIPTION = (
     "for routine work you can complete yourself."
 )
 
+# Opt in to the CLI's own default model. Only an explicit value gets it -
+# an unset ADVISOR_MODEL is an accident far more often than an intention.
+CLI_DEFAULT = "cli-default"
+
 # No default model IDs on purpose: they go stale, and pinning one would
 # undercut the point of keeping the advisor identity in config.
 PROVIDERS = (
@@ -166,6 +170,15 @@ def consult(question, context):
             + ", ".join(PROVIDERS)
         )
     model = os.environ.get("ADVISOR_MODEL") or None
+    if not model:
+        # An unset model used to mean "let the CLI decide", which silently made
+        # the advisor whatever the workhorse already was - the same model twice,
+        # with a log that looked healthy. Refuse instead; say so in the reply.
+        raise RuntimeError(
+            "ADVISOR_MODEL is not set. Set it to the strongest model you have "
+            "(/plugin configure the-advisor@the-advisor), or to 'cli-default' to "
+            "deliberately use your CLI's own default model."
+        )
     prompt = build_prompt(question, context)
     start = time.time()
     try:
@@ -178,7 +191,10 @@ def consult(question, context):
 
 
 def _dispatch(provider, model, prompt):
-    # CLI providers fall back to the CLI's own default model when unset.
+    # The one way to get the CLI's own default, and it has to be asked for.
+    if model == CLI_DEFAULT:
+        model = None
+
     if provider == "anthropic-cli":
         cmd = ["claude", "-p", prompt]
         if model:
@@ -192,7 +208,10 @@ def _dispatch(provider, model, prompt):
         return run_cli(cmd)
 
     if not model:
-        raise RuntimeError(f"ADVISOR_MODEL must be set for provider {provider}")
+        raise RuntimeError(
+            f"{CLI_DEFAULT!r} only works with the *-cli providers; "
+            f"provider {provider} needs a real ADVISOR_MODEL"
+        )
 
     if provider == "anthropic-api":
         # Base first: for a misconfigured provider the missing host is the
@@ -267,7 +286,7 @@ def handle(msg):
             ),
             "capabilities": {"tools": {}},
             # Kept in step with .claude-plugin/plugin.json by the test suite.
-            "serverInfo": {"name": "advisor", "version": "0.1.5"},
+            "serverInfo": {"name": "advisor", "version": "0.2.0"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
