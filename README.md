@@ -176,9 +176,9 @@ open, and the update added a new setting your running session doesn't know about
 fine, your Claude Code is too old for it. Update it, or pick a model your version supports.
 Homebrew installs lag the official release by a few days.
 
-**"ADVISOR_MODEL is not set"** — `/plugin configure` never got a value, or you haven't
-restarted since setting one. If you genuinely want your CLI's own default model, set
-`advisor_model` to `cli-default`.
+**"ADVISOR_MODEL is not set"** — no model was configured, or you haven't restarted since
+setting one. Re-run the install command with `--config advisor_model=...`; that works in
+the desktop app, where `/plugin configure` does not.
 
 **"Not logged in" / "OAuth session expired"** — `anthropic-cli` needs the CLI
 authenticated separately from your editor. Run `claude setup-token`. Consults fall back to
