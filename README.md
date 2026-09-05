@@ -2,12 +2,20 @@
 
 Your cheap workhorse model consults a stronger advisor before hard-to-reverse decisions.
 Any model on either side — Claude, Gemini, GPT, or a local model. Nothing is hardcoded.
+Works with Claude Code, any MCP client, or [standalone from the command line](#other-workhorses).
 
 Claude Code has a built-in `/advisor` that pairs Claude models inside your session. This
 plugin is the multi-provider version: any advisor, a greppable JSON log, and it works from
 workhorses that aren't Claude Code. The command is `/consult`.
 
 ![How it works](docs/loop.svg)
+
+- [Install](#install)
+- [Use it](#use-it)
+- [Settings](#settings)
+- [Other workhorses](#other-workhorses)
+- [How it works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
 
 ## Install
 
