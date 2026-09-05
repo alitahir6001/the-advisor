@@ -7,6 +7,11 @@ Fast and cheap by default, strong where it counts.
 own machine. The workhorse can be Claude Code, any MCP client, or a shell script. Nothing
 is hardcoded — you pick both.
 
+Claude Code has its own built-in Advisor (`/advisor`), which pairs Claude models inside
+your session. This is the other shape of the same idea: any provider including local
+models, a greppable JSON log of every consult, and it works from workhorses that aren't
+Claude Code. The skill here is `/consult`, because the built-in owns `/advisor`.
+
 ![How it works](docs/loop.svg)
 
 - [Install](#install)
@@ -19,38 +24,40 @@ is hardcoded — you pick both.
 
 ## Install
 
-Three steps, same in the terminal and the desktop app. Requires Python — standard library
-only, nothing to install. On Windows, also set `python_command` in step 2.
+Requires Python — standard library only, nothing to install.
 
-**1.** Type these into Claude Code:
+**1. Install and name your advisor**, in a terminal. Set `advisor_model` to the strongest
+model you have access to:
 
-```
-/plugin marketplace add alitahir6001/the-advisor
-```
-
-```
-/plugin install the-advisor@the-advisor
+```bash
+claude plugin marketplace add alitahir6001/the-advisor
 ```
 
-**2. Name your advisor** — the strongest model you have access to:
-
-```
-/plugin configure the-advisor@the-advisor
+```bash
+claude plugin install the-advisor@the-advisor --config advisor_model=claude-opus-5
 ```
 
-Don't skip this. Left blank, the advisor falls back to your CLI's default, which may be no
-stronger than your workhorse.
+Don't skip the model — left blank, the advisor refuses to run and tells you so. That is
+deliberate: it used to fall back to your CLI's default, which meant the advisor quietly
+became whatever your workhorse already was.
 
-**3. Pick a cheap workhorse.** Run `/model`, choose something fast.
+On Windows, add `--config python_command=python`.
 
-Restart Claude Code. Consults now go to the strong model, everything else stays cheap.
+**2. Pick a cheap workhorse.** In Claude Code, run `/model` and choose something fast.
+
+**3. Restart Claude Code.** Consults now go to the strong model, everything else stays
+cheap.
+
+To change a setting later, `/plugin configure the-advisor@the-advisor` opens a menu — but
+**only in the terminal**, not the desktop app. From the desktop app, re-run the install
+command above with the new value. Note that uninstalling clears your settings.
 
 ## Use it
 
 Three ways in, all typed into Claude Code:
 
 ```
-/advisor is a queue the right call here, or am I overbuilding?
+/consult is a queue the right call here, or am I overbuilding?
 ```
 
 **Or let it escalate on its own.** Just work — the bundled agent consults before
@@ -76,13 +83,18 @@ python3 consults.py       # list consults
 python3 consults.py 0     # open one: the header names the model that answered
 ```
 
-`model: None` means your setting never reached the server — re-run `/plugin configure`,
-then restart. (`0.1.5` is the installed version — change it if yours differs.)
+The advisor won't run without a model, so that header always names the model you chose.
+Older entries logged `model: None` — those ran on the CLI's default, from when an unset
+model was allowed to fall through silently. (`0.1.5` is the installed version — change it if yours differs.)
 
 ## Choose your advisor
 
-Set `advisor_provider` in `/plugin configure`. Model names aren't validated here, so a typo
-fails on the first consult with the vendor's own error.
+Set `advisor_provider` the same way you set the model — `--config advisor_provider=...` at
+install, or `/plugin configure` in a terminal.
+
+Model names aren't checked here; they're passed straight through. A bad one fails on the
+first consult with the vendor's own error, which names the model, so read it carefully — a
+correct name can also be rejected because your Claude Code is too old for that model.
 
 | Advisor | `advisor_provider` | Also set | Model names |
 |---|---|---|---|
@@ -94,7 +106,8 @@ fails on the first consult with the vendor's own error.
 | Gateway (OpenRouter, Groq) | `openai-compatible` | `advisor_base_url`, `advisor_api_key` | your gateway's list |
 
 Examples current as of August 2026. `*-cli` providers also take that CLI's short aliases,
-like `opus`. A local advisor needs no API key.
+like `opus`, and `cli-default` to deliberately use whatever your CLI defaults to. A local
+advisor needs no API key.
 
 ## Settings
 
@@ -103,7 +116,7 @@ environment, which is how the standalone paths below work.
 
 | Option | Environment variable | Notes |
 |---|---|---|
-| `advisor_model` | `ADVISOR_MODEL` | required; any name your provider accepts |
+| `advisor_model` | `ADVISOR_MODEL` | required; any name your provider accepts, or `cli-default` |
 | `advisor_provider` | `ADVISOR_PROVIDER` | one of the five values above |
 | `advisor_base_url` | `ADVISOR_BASE_URL` | API root override; makes the key optional |
 | `advisor_api_key` | `ADVISOR_API_KEY` | falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` |
@@ -142,7 +155,7 @@ ADVISOR_PROVIDER=gemini-cli python3 server/advisor_server.py \
 |---|---|
 | `agents/advisor.md` | Carries the escalation rule. Always in context. Fallback when the MCP tool is down. |
 | `server/advisor_server.py` | The `consult_advisor` MCP tool, and the standalone CLI. |
-| `skills/` | `/advisor` for direct questions, `/second-opinion` for one-off calls. |
+| `skills/` | `/consult` for direct questions, `/second-opinion` for one-off calls. |
 
 The advisor is **stateless** — it sees only what the workhorse sends, never your session
 history. That forces the workhorse to articulate the problem, which is half the value, and
@@ -155,6 +168,17 @@ python3 -m unittest discover -s server -p 'test_*.py'
 ## Troubleshooting
 
 **Settings don't apply** — restart Claude Code. Config is read when the server starts.
+
+**`Executable not found in $PATH: ${user_config...}`** — you updated while Claude Code was
+open, and the update added a new setting your running session doesn't know about. Restart.
+
+**"does not support this model; version X or newer is required"** — the model name is
+fine, your Claude Code is too old for it. Update it, or pick a model your version supports.
+Homebrew installs lag the official release by a few days.
+
+**"ADVISOR_MODEL is not set"** — `/plugin configure` never got a value, or you haven't
+restarted since setting one. If you genuinely want your CLI's own default model, set
+`advisor_model` to `cli-default`.
 
 **"Not logged in" / "OAuth session expired"** — `anthropic-cli` needs the CLI
 authenticated separately from your editor. Run `claude setup-token`. Consults fall back to
