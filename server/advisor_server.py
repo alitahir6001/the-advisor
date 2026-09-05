@@ -175,9 +175,11 @@ def consult(question, context):
         # the advisor whatever the workhorse already was - the same model twice,
         # with a log that looked healthy. Refuse instead; say so in the reply.
         raise RuntimeError(
-            "ADVISOR_MODEL is not set. Set it to the strongest model you have "
-            "(/plugin configure the-advisor@the-advisor), or to 'cli-default' to "
-            "deliberately use your CLI's own default model."
+            "ADVISOR_MODEL is not set. Set it to the strongest model you have:\n"
+            "  claude plugin install the-advisor@the-advisor "
+            "--config advisor_model=<model>\n"
+            "Use 'cli-default' as the model to deliberately run your CLI's own "
+            "default. (/plugin configure also works, but only in a terminal.)"
         )
     prompt = build_prompt(question, context)
     start = time.time()
