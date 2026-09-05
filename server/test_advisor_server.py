@@ -36,10 +36,15 @@ ADVISOR_VARS = (
 
 @contextmanager
 def env(**overrides):
-    """Run with a known-clean advisor env; unnamed vars are unset."""
+    """Run with a known-clean advisor env; unnamed vars are unset.
+
+    ADVISOR_MODEL defaults to a stub because consult() now refuses to run
+    without one - tests that care about that pass ADVISOR_MODEL="" instead.
+    """
     with mock.patch.dict(os.environ):
         for key in ADVISOR_VARS:
             os.environ.pop(key, None)
+        os.environ["ADVISOR_MODEL"] = "test-model"
         for key, value in overrides.items():
             os.environ[key] = value
         yield
@@ -150,17 +155,17 @@ class TestProviderDispatch(unittest.TestCase):
         prompt = adv.build_prompt("q", "c")
 
         cli_cases = [
-            ("anthropic-cli", None, ["claude", "-p", prompt]),
+            # 'cli-default' is the only way to omit the flag, and it is opt-in.
+            ("anthropic-cli", adv.CLI_DEFAULT, ["claude", "-p", prompt]),
             ("anthropic-cli", "big", ["claude", "-p", prompt, "--model", "big"]),
-            ("gemini-cli", None, ["gemini", "-p", prompt]),
+            ("gemini-cli", adv.CLI_DEFAULT, ["gemini", "-p", prompt]),
             # Note the flag order flip: -m comes before -p here, not after.
             ("gemini-cli", "gem", ["gemini", "-m", "gem", "-p", prompt]),
         ]
         for provider, model, expected in cli_cases:
             with self.subTest(provider=provider, model=model):
-                overrides = {"ADVISOR_PROVIDER": provider}
-                if model:
-                    overrides["ADVISOR_MODEL"] = model
+                overrides = {"ADVISOR_PROVIDER": provider,
+                             "ADVISOR_MODEL": model}
                 with env(**overrides), temp_log(), \
                         mock.patch.object(adv.subprocess, "run",
                                           return_value=completed()) as run:
@@ -226,7 +231,8 @@ class TestProviderDispatch(unittest.TestCase):
 
         for provider in ("anthropic-api", "openai-api"):
             with self.subTest(provider=provider, missing="model"), \
-                    env(ADVISOR_PROVIDER=provider), temp_log():
+                    env(ADVISOR_PROVIDER=provider,
+                        ADVISOR_MODEL=adv.CLI_DEFAULT), temp_log():
                 with self.assertRaises(RuntimeError) as e:
                     adv.consult("q", "c")
                 self.assertIn("ADVISOR_MODEL", str(e.exception))
@@ -238,6 +244,37 @@ class TestProviderDispatch(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as e:
                     adv.consult("q", "c")
                 self.assertIn(keyvar, str(e.exception))
+
+
+class TestModelIsRequired(unittest.TestCase):
+    """An unset model used to inherit the workhorse's own model, making the
+    advisor the same model twice while the log still read as healthy."""
+
+    def test_unset_model_is_refused_and_cli_default_is_opt_in(self):
+        # Every provider refuses, and the error names the fix.
+        for provider in ("anthropic-cli", "gemini-cli", "openai-compatible"):
+            with self.subTest(provider=provider), \
+                    env(ADVISOR_PROVIDER=provider, ADVISOR_MODEL=""), \
+                    temp_log() as log, \
+                    mock.patch.object(adv.subprocess, "run") as run:
+                with self.assertRaises(RuntimeError) as e:
+                    adv.consult("q", "c")
+                self.assertIn("ADVISOR_MODEL", str(e.exception))
+                self.assertIn(adv.CLI_DEFAULT, str(e.exception))
+                # No vendor call was made, and the refusal is on the record.
+                run.assert_not_called()
+                self.assertEqual(len(log_entries(log)), 0)
+
+        # Asking for it explicitly still works, and omits the flag.
+        with env(ADVISOR_PROVIDER="anthropic-cli",
+                 ADVISOR_MODEL=adv.CLI_DEFAULT), temp_log() as log, \
+                mock.patch.object(adv.subprocess, "run",
+                                  return_value=completed()) as run:
+            self.assertEqual(adv.consult("q", "c"), "advice")
+            entries = log_entries(log)  # read before the temp dir goes away
+        self.assertNotIn("--model", run.call_args.args[0])
+        # Logged as the sentinel, never as null - null is what hid this bug.
+        self.assertEqual(entries[0]["model"], adv.CLI_DEFAULT)
 
 
 class TestUserConfigSubstitution(unittest.TestCase):
