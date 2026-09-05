@@ -58,6 +58,20 @@ API_BASES = {
 }
 
 
+def infer_provider(model, base_url=""):
+    """Best-guess provider from the model name. Explicit ADVISOR_PROVIDER wins."""
+    if base_url:
+        return "openai-compatible"
+    if not model or model == CLI_DEFAULT:
+        return "anthropic-cli"
+    m = model.lower()
+    if m.startswith(("gemini-", "gemini_")):
+        return "gemini-cli"
+    if m.startswith(("gpt-", "o1-", "o3-", "o4-", "chatgpt-")):
+        return "openai-api"
+    return "anthropic-cli"
+
+
 LOG_PATH = os.environ.get("ADVISOR_LOG") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "consult-log.jsonl"
 )
@@ -173,13 +187,7 @@ def http_json(url, headers, body):
 
 
 def consult(question, context, workhorse=None):
-    # `or` not a get() default: an unset userConfig key substitutes as "".
-    provider = os.environ.get("ADVISOR_PROVIDER") or "anthropic-cli"
-    if provider not in PROVIDERS:
-        raise RuntimeError(
-            f"unknown ADVISOR_PROVIDER {provider!r}; expected one of "
-            + ", ".join(PROVIDERS)
-        )
+    # Model first: the provider can be inferred from it.
     model = os.environ.get("ADVISOR_MODEL") or None
     if not model:
         # An unset model used to mean "let the CLI decide", which silently made
@@ -191,6 +199,15 @@ def consult(question, context, workhorse=None):
             "--config advisor_model=<model>\n"
             "Use 'cli-default' as the model to deliberately run your CLI's own "
             "default. (/plugin configure also works, but only in a terminal.)"
+        )
+    # `or` not a get() default: an unset userConfig key substitutes as "".
+    provider = os.environ.get("ADVISOR_PROVIDER") or infer_provider(
+        model, os.environ.get("ADVISOR_BASE_URL", "")
+    )
+    if provider not in PROVIDERS:
+        raise RuntimeError(
+            f"unknown ADVISOR_PROVIDER {provider!r}; expected one of "
+            + ", ".join(PROVIDERS)
         )
     prompt = build_prompt(question, context)
     start = time.time()

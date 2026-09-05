@@ -19,8 +19,8 @@
     "advisor_provider": {
       "type": "string",
       "title": "Advisor provider",
-      "description": "One of: anthropic-cli, gemini-cli, anthropic-api, openai-api, openai-compatible. The *-cli options bill your existing subscription.",
-      "default": "anthropic-cli"
+      "description": "Auto-detected from the model name if left blank: claude-* uses your Claude CLI, gemini-* uses Gemini CLI, gpt-* uses the OpenAI API. Set advisor_base_url for local/gateway models. Override here only for edge cases.",
+      "default": ""
     },
     "advisor_base_url": {
       "type": "string",
