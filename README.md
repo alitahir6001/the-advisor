@@ -93,12 +93,22 @@ Not on Claude Code? Clone the repo and point your MCP client at the server:
 git clone https://github.com/alitahir6001/the-advisor.git
 ```
 
-**Gemini CLI** — use a cheap Flash workhorse with a stronger model as the advisor:
+**Gemini CLI** — manual installation:
 
-```bash
-gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py \
-  -e ADVISOR_MODEL=gemini-3.8-flash
-```
+1. **Clone the repo** to a permanent location.
+2. **Add the MCP server** (global recommended):
+   ```bash
+   # Windows (use absolute path)
+   gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
+   
+   # macOS / Linux
+   gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
+   ```
+3. **Add the slash commands** (Skills):
+   ```bash
+   gemini skill link C:\path\to\the-advisor\skills\consult
+   gemini skill link C:\path\to\the-advisor\skills\second-opinion
+   ```
 
 `-e` sets environment variables on the server — same settings as the table above. Adjust
 the path to wherever you cloned the repo. On Windows, use `python` instead of `python3`.
@@ -139,6 +149,18 @@ too old. Update it, or pick a model your version supports. Homebrew lags by a fe
 **Desktop app can't see your env** — put API keys in `/plugin configure`, not `~/.zshrc`.
 
 **Windows: plugin won't start** — set `python_command` to `python` via `/plugin configure`.
+
+## Gemini CLI: Lessons Learned
+
+If `gemini mcp list` shows no servers after an add, check these common pitfalls:
+
+- **Configuration Scope:** `gemini mcp add` creates a project-specific config if run inside a 
+  subdirectory. For global availability, run it from your home directory or manually move 
+  the `mcpServers` block to `~/.gemini/settings.json`.
+- **Windows Paths:** JSON configuration does not expand `~/`. Use absolute paths (e.g., 
+  `C:\path\to\...`) and ensure you use `python` if `python3` is not in your PATH.
+- **MCP vs Skills:** Adding an MCP server provides the tools, but slash commands 
+  (like `/consult`) require linking the corresponding skill files via `gemini skill link`.
 
 ## Credits
 
