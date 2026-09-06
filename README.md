@@ -96,16 +96,18 @@ git clone https://github.com/alitahir6001/the-advisor.git
 **Gemini CLI** — manual installation:
 
 1. **Clone the repo** to a permanent location.
-2. **Add the MCP server** (global recommended):
+2. **Add the MCP server** (Global is recommended):
    ```bash
-   # Windows (use absolute path)
+   # Windows: Use ABSOLUTE paths. Use 'python' if 'python3' fails.
    gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
    
-   # macOS / Linux
+   # macOS / Linux:
    gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
    ```
-3. **Add the slash commands** (Skills):
+3. **Add the slash commands** (Link the Skills):
+   *Note: MCP provides the tool, but Skills provide the `/consult` command.*
    ```bash
+   # Run these separately
    gemini skill link C:\path\to\the-advisor\skills\consult
    gemini skill link C:\path\to\the-advisor\skills\second-opinion
    ```
@@ -149,6 +151,10 @@ too old. Update it, or pick a model your version supports. Homebrew lags by a fe
 **Desktop app can't see your env** — put API keys in `/plugin configure`, not `~/.zshrc`.
 
 **Windows: plugin won't start** — set `python_command` to `python` via `/plugin configure`.
+
+**Windows: WinError 2 (File Not Found) during /consult** — The advisor server needs to 
+find your `gemini` or `claude` CLI. We've added automatic absolute path resolution using 
+`shutil.which`, but ensure your node/nvm paths are in your system PATH.
 
 ## Gemini CLI: Lessons Learned
 

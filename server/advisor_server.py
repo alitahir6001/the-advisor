@@ -11,6 +11,7 @@ the workhorse. Stdlib only, so there is no install step.
 import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -136,6 +137,12 @@ def subprocess_env():
 
 
 def run_cli(cmd):
+    # Resolve absolute path on Windows to avoid WinError 2 if cmd.exe pathing
+    # differs from Python's or if the command is a shell script.
+    resolved = shutil.which(cmd[0])
+    if resolved:
+        cmd[0] = resolved
+
     # stdin=DEVNULL matters: without it the child inherits this server's stdin,
     # which is the live JSON-RPC pipe, and the CLI stalls waiting on it.
     proc = subprocess.run(
@@ -145,6 +152,7 @@ def run_cli(cmd):
         timeout=300,
         env=subprocess_env(),
         stdin=subprocess.DEVNULL,
+        shell=os.name == "nt",
     )
     if proc.returncode != 0:
         # CLIs report auth failures on stdout, so stderr alone hides the cause.
