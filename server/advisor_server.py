@@ -85,6 +85,22 @@ def ensure_log_dir():
         os.makedirs(d, exist_ok=True)
 
 
+MODEL_OVERRIDE_PATH = os.path.expanduser("~/.the-advisor/model")
+
+
+def read_model_override():
+    # A file, not a userConfig option, on purpose: userConfig is keyed by
+    # plugin identity, and the desktop app and CLI can resolve to different
+    # identities (see README) - a GUI-only user could be unable to reach
+    # theirs at all. A fixed path outside Claude Code's own config sidesteps
+    # that, and is re-read on every call, so a change needs no restart.
+    try:
+        with open(MODEL_OVERRIDE_PATH) as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
 def log_consult(provider, model, question, context, reply, error, start):
     # Full verbatim reply on purpose (advisor-reviewed decision, 2026-07-12):
     # summaries lose the conditional caveats that post-mortems need.
@@ -196,14 +212,17 @@ def http_json(url, headers, body):
 
 
 def consult(question, context, workhorse=None):
-    # Model first: the provider can be inferred from it.
-    model = os.environ.get("ADVISOR_MODEL") or None
+    # Model first: the provider can be inferred from it. The override file
+    # wins over ADVISOR_MODEL - see read_model_override() for why.
+    model = read_model_override() or os.environ.get("ADVISOR_MODEL") or None
     if not model:
         # An unset model used to mean "let the CLI decide", which silently made
         # the advisor whatever the workhorse already was - the same model twice,
         # with a log that looked healthy. Refuse instead; say so in the reply.
         raise RuntimeError(
-            "ADVISOR_MODEL is not set. Set it to the strongest model you have:\n"
+            "ADVISOR_MODEL is not set. Easiest fix, no restart needed:\n"
+            "  /advisor-model <model>\n"
+            "Or set it at install time:\n"
             "  claude plugin install the-advisor@the-advisor "
             "--config advisor_model=<model>\n"
             "Use 'cli-default' as the model to deliberately run your CLI's own "
