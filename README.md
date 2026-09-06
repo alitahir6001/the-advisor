@@ -87,21 +87,26 @@ the install command). Uninstalling clears settings.
 
 ## Other workhorses
 
-Not on Claude Code? The server runs standalone with any MCP client or from the command
-line. For example, using Gemini CLI: set a cheaper Flash model as the workhorse with a stronger Gemini model as the advisor:
+Not on Claude Code? Clone the repo and point your MCP client at the server:
 
 ```bash
-gemini mcp add advisor python3 /path/to/the-advisor/server/advisor_server.py \
+git clone https://github.com/alitahir6001/the-advisor.git
+```
+
+**Gemini CLI** — use a cheap Flash workhorse with a stronger model as the advisor:
+
+```bash
+gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py \
   -e ADVISOR_MODEL=gemini-3.8-flash
 ```
 
-Now your cheap Gemini workhorse consults a stronger Gemini model — no Claude Code involved.
-On Windows, use `python` instead of `python3`.
+`-e` sets environment variables on the server — same settings as the table above. Adjust
+the path to wherever you cloned the repo. On Windows, use `python` instead of `python3`.
 
 **No client at all** — one shot, advice to stdout:
 
 ```bash
-python3 server/advisor_server.py "Queue or direct call?" "10 req/min, user waits."
+python3 the-advisor/server/advisor_server.py "Queue or direct call?" "10 req/min, user waits."
 ```
 
 ## How it works
