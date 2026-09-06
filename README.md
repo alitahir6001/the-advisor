@@ -34,7 +34,7 @@ claude plugin install the-advisor@the-advisor \
   --config advisor_base_url=http://localhost:11434/v1
 ```
 
-Pick a cheap workhorse with `/model`, restart Claude Code, done.
+Pick a cheap workhorse with `/model` and start a new session — the plugin loads on startup.
 
 On Windows, add `--config python_command=python`.
 
@@ -87,15 +87,16 @@ the install command). Uninstalling clears settings.
 
 ## Other workhorses
 
-Not on Claude Code? The server runs standalone.
-
-**Any MCP client** — plain MCP over stdio:
+Not on Claude Code? The server runs standalone with any MCP client or from the command
+line. For example, using Gemini CLI: set a cheaper Flash model as the workhorse with a stronger Gemini model as the advisor:
 
 ```bash
 gemini mcp add advisor python3 /path/to/the-advisor/server/advisor_server.py \
-  -e ADVISOR_MODEL=gemma3:latest \
-  -e ADVISOR_BASE_URL=http://localhost:11434/v1
+  -e ADVISOR_MODEL=gemini-3.8-flash
 ```
+
+Now your cheap Gemini workhorse consults a stronger Gemini model — no Claude Code involved.
+On Windows, use `python` instead of `python3`.
 
 **No client at all** — one shot, advice to stdout:
 
