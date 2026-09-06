@@ -40,8 +40,10 @@ def env(**overrides):
 
     ADVISOR_MODEL defaults to a stub because consult() now refuses to run
     without one - tests that care about that pass ADVISOR_MODEL="" instead.
+    shutil.which is neutralised so tests see bare command names, not paths.
     """
-    with mock.patch.dict(os.environ):
+    with mock.patch.dict(os.environ), \
+            mock.patch.object(adv.shutil, "which", return_value=None):
         for key in ADVISOR_VARS:
             os.environ.pop(key, None)
         os.environ["ADVISOR_MODEL"] = "test-model"
