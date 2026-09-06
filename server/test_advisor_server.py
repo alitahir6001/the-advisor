@@ -41,9 +41,14 @@ def env(**overrides):
     ADVISOR_MODEL defaults to a stub because consult() now refuses to run
     without one - tests that care about that pass ADVISOR_MODEL="" instead.
     shutil.which is neutralised so tests see bare command names, not paths.
+    MODEL_OVERRIDE_PATH is pointed at a path that can't exist, so tests
+    aren't at the mercy of whatever's in the real machine's override file;
+    tests that care about the override patch it again to a real temp file.
     """
     with mock.patch.dict(os.environ), \
-            mock.patch.object(adv.shutil, "which", return_value=None):
+            mock.patch.object(adv.shutil, "which", return_value=None), \
+            mock.patch.object(adv, "MODEL_OVERRIDE_PATH",
+                               "/nonexistent/the-advisor-test/model"):
         for key in ADVISOR_VARS:
             os.environ.pop(key, None)
         os.environ["ADVISOR_MODEL"] = "test-model"
@@ -398,6 +403,64 @@ class TestUserConfigSubstitution(unittest.TestCase):
         blob = json.dumps(server)
         referenced = set(re.findall(r"\$\{user_config\.([^}]+)\}", blob))
         self.assertEqual(declared, referenced)
+
+
+class TestModelOverrideFile(unittest.TestCase):
+    """The override file exists so the model can change without touching
+    Claude Code's own config, which is keyed by plugin identity and can be
+    unreachable from the desktop app (see README). It must win over
+    ADVISOR_MODEL, or changing it would silently do nothing for an
+    already-configured install."""
+
+    def test_override_file_wins_and_falls_back_when_absent(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "model")
+
+            # No file yet: unchanged behaviour, the env var is used.
+            with env(ADVISOR_PROVIDER="anthropic-cli", ADVISOR_MODEL="env-model"), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", path), \
+                    temp_log(), \
+                    mock.patch.object(adv.subprocess, "run",
+                                      return_value=completed()) as run:
+                adv.consult("q", "c")
+            self.assertIn("env-model", run.call_args.args[0])
+
+            # File present: wins over the env var, even though both are set.
+            with open(path, "w") as f:
+                f.write("file-model\n")
+            with env(ADVISOR_PROVIDER="anthropic-cli", ADVISOR_MODEL="env-model"), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", path), \
+                    temp_log(), \
+                    mock.patch.object(adv.subprocess, "run",
+                                      return_value=completed()) as run:
+                adv.consult("q", "c")
+            self.assertIn("file-model", run.call_args.args[0])
+            self.assertNotIn("env-model", run.call_args.args[0])
+
+    def test_blank_override_file_is_treated_as_unset(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "model")
+            with open(path, "w") as f:
+                f.write("   \n")
+            with env(ADVISOR_PROVIDER="anthropic-cli", ADVISOR_MODEL="env-model"), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", path), \
+                    temp_log(), \
+                    mock.patch.object(adv.subprocess, "run",
+                                      return_value=completed()) as run:
+                adv.consult("q", "c")
+            self.assertIn("env-model", run.call_args.args[0])
+
+    def test_neither_file_nor_env_still_refuses_and_names_the_skill(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "model")  # never created
+            with env(ADVISOR_MODEL=""), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", path), \
+                    temp_log(), \
+                    mock.patch.object(adv.subprocess, "run") as run:
+                with self.assertRaises(RuntimeError) as e:
+                    adv.consult("q", "c")
+            self.assertIn("/advisor-model", str(e.exception))
+            run.assert_not_called()
 
 
 class TestByoEndpoint(unittest.TestCase):
