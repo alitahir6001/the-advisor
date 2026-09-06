@@ -2,7 +2,6 @@
 
 Your cheap workhorse model consults a stronger advisor before hard-to-reverse decisions.
 Any model on either side — Claude, Gemini, GPT, or a local model. Nothing is hardcoded.
-Works with Claude Code, any MCP client, or [standalone from the command line](#other-workhorses).
 
 Claude Code has a built-in `/advisor` that pairs Claude models inside your session. This
 plugin is the multi-provider version: any advisor, a greppable JSON log, and it works from
@@ -10,41 +9,34 @@ workhorses that aren't Claude Code. The command is `/consult`.
 
 ![How it works](docs/loop.svg)
 
-- [Install](#install)
-- [Use it](#use-it)
-- [Settings](#settings)
-- [Other workhorses](#other-workhorses)
-- [How it works](#how-it-works)
+- [Quickstart](#quickstart)
+- [Changing settings later](#changing-settings-later)
 - [Troubleshooting](#troubleshooting)
+- [Not using Claude Code?](#not-using-claude-code)
+- [How it works](#how-it-works)
 
-## Install
+## Quickstart
 
-Requires Python 3 — standard library only, nothing to install.
+Requires Python 3 — standard library only, nothing else to install.
 
+**macOS / Linux:**
 ```bash
 claude plugin marketplace add alitahir6001/the-advisor && claude plugin install the-advisor@the-advisor --config advisor_model=claude-opus-5
 ```
 
-The provider is detected from the model name — `claude-*` uses your Claude CLI, `gemini-*`
-uses Gemini, `gpt-*` uses the OpenAI API. For a local model, set the base URL:
-
+**Windows** — same, plus one flag (`python3` doesn't exist on Windows):
 ```bash
-claude plugin install the-advisor@the-advisor \
-  --config advisor_model=gemma3:latest \
-  --config advisor_base_url=http://localhost:11434/v1
+claude plugin marketplace add alitahir6001/the-advisor && claude plugin install the-advisor@the-advisor --config advisor_model=claude-opus-5 --config python_command=python
 ```
 
-Pick a cheap workhorse with `/model` and start a new session — the plugin loads on startup.
-
-On Windows, add `--config python_command=python`.
-
-## Use it
+Pick a cheap workhorse with `/model`, then start a new session — the plugin loads on
+startup — and try it:
 
 ```
 /consult is a queue the right call here, or am I overbuilding?
 ```
 
-Every reply names both models so you know who answered:
+You're done when the reply names both models:
 
 ```
 Advisor   = claude-opus-5 (anthropic-cli)
@@ -54,17 +46,38 @@ Workhorse = claude-haiku-4-5
 The bundled agent also escalates on its own — before architectural calls, after the same
 fix fails twice, and on tradeoffs it can't settle alone. It stays quiet on routine work.
 
-Route a one-off question to a different provider (needs that vendor's CLI installed):
+Want Gemini or GPT as the advisor instead of Claude? Just change `advisor_model` above —
+the provider is auto-detected from the name (`claude-*`, `gemini-*`, `gpt-*`). For a local
+model, also add `--config advisor_base_url=http://localhost:11434/v1`.
 
+Route a one-off question to a different provider ad hoc (needs that vendor's CLI installed):
 ```
 /second-opinion ask gemini what it thinks about this schema
 ```
 
-## Settings
+## Changing settings later
 
-Set at install with `--config key=value`, or change later with
-`/plugin configure the-advisor@the-advisor` (terminal only — in the desktop app, re-run
-the install command). Uninstalling clears settings.
+**The model** — the common case, no terminal needed, works the same in the desktop app
+and CLI:
+```
+/advisor-model claude-opus-5
+```
+Takes effect on the very next `/consult`. No restart. Run it with no argument to see the
+current value.
+
+**Anything else** (`advisor_provider`, `advisor_base_url`, `advisor_api_key`,
+`python_command`) — no skill for those yet:
+
+| Where you are | How |
+|---|---|
+| Terminal | `/plugin configure the-advisor@the-advisor`, then restart Claude Code |
+| Desktop app | re-run the [Quickstart](#quickstart) install command with the new `--config` value |
+
+Uninstalling clears every `--config` setting — pass `--config` again on reinstall. (The
+`/advisor-model` override lives outside Claude Code entirely, so it survives.)
+
+<details>
+<summary>All settings, and every provider's <code>advisor_provider</code> value</summary>
 
 | Option | Env variable | Notes |
 |---|---|---|
@@ -85,37 +98,79 @@ the install command). Uninstalling clears settings.
 | OpenAI (API) | `openai-api` | [docs](https://developers.openai.com/api/docs/models) |
 | Local / gateway | `openai-compatible` | `ollama list`, or your gateway's list |
 
-## Other workhorses
+</details>
 
-Not on Claude Code? Clone the repo and point your MCP client at the server:
+## Troubleshooting
+
+**Changed a `--config`/`/plugin configure` setting, nothing happened** — restart Claude
+Code; it only reaches the MCP server on its next start. This doesn't apply to
+`/advisor-model`, which needs no restart.
+
+**Model keeps showing a value you didn't just set** — check `~/.the-advisor/model`. Once
+it exists it wins over `--config advisor_model=...`/`ADVISOR_MODEL`, so a stale value there
+shadows anything set at install. Run `/advisor-model <model>` to update it, or delete the
+file to go back to the installed default.
+
+**"does not support this model; version X or newer is required"** — your Claude Code is
+too old for that model. Run `claude update` (or upgrade however you installed it — Homebrew
+and WinGet don't auto-update by default), or pick a model your current version supports.
+
+**"ADVISOR_MODEL is not set"** — run `/advisor-model <model>`, or re-run the install
+command with `--config advisor_model=...`.
+
+**"Not logged in"** — run `claude setup-token`. The bundled agent fills in meanwhile.
+
+**Desktop app can't see an API key you set in `~/.zshrc`** — it doesn't inherit your
+shell's environment. Set it via `/plugin configure` instead.
+
+**Windows: plugin won't start** — set `python_command` to `python` via `/plugin configure`
+(or pass it at install, see [Quickstart](#quickstart)).
+
+**Windows: `WinError 2` (file not found) during `/consult`** — the advisor couldn't find
+your `gemini`/`claude` CLI. The server already resolves absolute paths automatically; make
+sure your Node/nvm paths are on your system PATH too.
+
+**Gemini CLI: `gemini mcp list` shows nothing after adding the server** — see
+[Not using Claude Code?](#not-using-claude-code) below; this is almost always the
+project-scoping gotcha.
+
+## Not using Claude Code?
+
+Clone the repo and point your MCP client at the server directly:
 
 ```bash
 git clone https://github.com/alitahir6001/the-advisor.git
 ```
 
-**Gemini CLI** — manual installation:
+**Gemini CLI:**
 
 1. **Clone the repo** to a permanent location.
-2. **Add the MCP server** (Global is recommended):
+2. **Add the MCP server**, from your home directory — not a subdirectory, see the note
+   below:
    ```bash
-   # Windows: Use ABSOLUTE paths. Use 'python' if 'python3' fails.
-   gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
-   
-   # macOS / Linux:
+   # macOS / Linux
    gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
+
+   # Windows — absolute paths, and 'python' not 'python3'
+   gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
    ```
-3. **Add the slash commands** (Link the Skills):
-   *Note: MCP provides the tool, but Skills provide the `/consult` command.*
+3. **Link the skills.** The MCP server provides the tool, but `/consult` needs its skill
+   linked separately:
    ```bash
-   # Run these separately
-   gemini skill link C:\path\to\the-advisor\skills\consult
-   gemini skill link C:\path\to\the-advisor\skills\second-opinion
+   gemini skill link ~/the-advisor/skills/consult
+   gemini skill link ~/the-advisor/skills/second-opinion
+   gemini skill link ~/the-advisor/skills/advisor-model
    ```
 
-`-e` sets environment variables on the server — same settings as the table above. Adjust
-the path to wherever you cloned the repo. On Windows, use `python` instead of `python3`.
+`-e` sets environment variables — same options as the [settings table](#changing-settings-later).
 
-**No client at all** — one shot, advice to stdout:
+If `gemini mcp list` shows nothing afterward: `gemini mcp add` scopes the config to
+whatever directory you ran it in, so running it from inside a project silently confines it
+there — either run it from your home directory as shown above, or move the `mcpServers`
+block it wrote into `~/.gemini/settings.json` by hand for global availability. JSON config
+doesn't expand `~/`, so Windows paths must be absolute.
+
+**No client at all** — one-shot, advice straight to stdout:
 
 ```bash
 python3 the-advisor/server/advisor_server.py "Queue or direct call?" "10 req/min, user waits."
@@ -129,44 +184,13 @@ python3 the-advisor/server/advisor_server.py "Queue or direct call?" "10 req/min
 |---|---|
 | `agents/advisor.md` | Escalation rule. Always in context. |
 | `server/advisor_server.py` | The `consult_advisor` MCP tool and standalone CLI. |
-| `skills/` | `/consult` for direct questions, `/second-opinion` for one-off calls. |
+| `skills/` | `/consult` for direct questions, `/second-opinion` for one-off calls, `/advisor-model` to change the model. |
 
 The advisor is **stateless** — it sees only what the workhorse sends, never your session.
 
 ```bash
 python3 -m unittest discover -s server -p 'test_*.py'
 ```
-
-## Troubleshooting
-
-**Settings don't apply** — restart Claude Code.
-
-**"does not support this model; version X or newer is required"** — your Claude Code is
-too old. Update it, or pick a model your version supports. Homebrew lags by a few days.
-
-**"ADVISOR_MODEL is not set"** — re-run the install command with `--config advisor_model=...`.
-
-**"Not logged in"** — run `claude setup-token`. The bundled agent fills in meanwhile.
-
-**Desktop app can't see your env** — put API keys in `/plugin configure`, not `~/.zshrc`.
-
-**Windows: plugin won't start** — set `python_command` to `python` via `/plugin configure`.
-
-**Windows: WinError 2 (File Not Found) during /consult** — The advisor server needs to 
-find your `gemini` or `claude` CLI. We've added automatic absolute path resolution using 
-`shutil.which`, but ensure your node/nvm paths are in your system PATH.
-
-## Gemini CLI: Lessons Learned
-
-If `gemini mcp list` shows no servers after an add, check these common pitfalls:
-
-- **Configuration Scope:** `gemini mcp add` creates a project-specific config if run inside a 
-  subdirectory. For global availability, run it from your home directory or manually move 
-  the `mcpServers` block to `~/.gemini/settings.json`.
-- **Windows Paths:** JSON configuration does not expand `~/`. Use absolute paths (e.g., 
-  `C:\path\to\...`) and ensure you use `python` if `python3` is not in your PATH.
-- **MCP vs Skills:** Adding an MCP server provides the tools, but slash commands 
-  (like `/consult`) require linking the corresponding skill files via `gemini skill link`.
 
 ## Credits
 
