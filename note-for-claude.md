@@ -29,6 +29,12 @@ proc = subprocess.run(cmd, ...)
 During the initial `gemini trust add` and configuration phase, the CLI went into an infinite loop/wonky state. Because the process was killed/crashed, the history file wasn't flushed to the `history/` directory. 
 *   **Lesson:** For Windows users, configuration "churn" is higher. We need to be more explicit about checking where `settings.json` is actually living (Project vs. Global scope).
 
+## The Prompt Rigidity Problem
+The initial `ADVISOR_SYSTEM` prompt was too prescriptive, mandating a specific "Recommendation/Reasoning/Risks" structure. This caused the advisor to reject simple identification or meta-questions.
+
+### The Fix:
+I relaxed the prompt to allow for direct technical answers while still *preferring* the structured format for complex decisions. This makes the advisor feel more like a helpful senior peer rather than a rigid template-filler.
+
 ## README Gaps (Pointers for Update)
 The current installation instructions are too macOS-centric. Here’s what we need to improve to make it "painless":
 
