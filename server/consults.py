@@ -13,7 +13,7 @@ import sys
 from collections import Counter
 
 LOG = os.environ.get("ADVISOR_LOG") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "consult-log.jsonl"
+    os.path.expanduser("~/.the-advisor"), "consult-log.jsonl"
 )
 
 
