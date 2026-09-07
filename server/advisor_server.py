@@ -74,8 +74,15 @@ def infer_provider(model, base_url=""):
     return "anthropic-cli"
 
 
+# Fixed, identity-independent directory - same reasoning as
+# read_model_override() below, applied to the log. CLAUDE_PLUGIN_DATA is
+# keyed by plugin identity (desktop app vs CLI), so logging there split one
+# user's history into two files; this unifies them and survives version
+# bumps, since it's outside the versioned cache path too.
+THE_ADVISOR_DIR = os.path.expanduser("~/.the-advisor")
+
 LOG_PATH = os.environ.get("ADVISOR_LOG") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "consult-log.jsonl"
+    THE_ADVISOR_DIR, "consult-log.jsonl"
 )
 
 
@@ -85,7 +92,7 @@ def ensure_log_dir():
         os.makedirs(d, exist_ok=True)
 
 
-MODEL_OVERRIDE_PATH = os.path.expanduser("~/.the-advisor/model")
+MODEL_OVERRIDE_PATH = os.path.join(THE_ADVISOR_DIR, "model")
 
 
 def read_model_override():
