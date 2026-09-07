@@ -10,10 +10,10 @@ workhorses that aren't Claude Code. The command is `/consult`.
 ![How it works](docs/loop.svg)
 
 - [Quickstart](#quickstart)
+- [How it works](#how-it-works)
+- [Using other models](#using-other-models)
 - [Changing settings later](#changing-settings-later)
 - [Troubleshooting](#troubleshooting)
-- [Not using Claude Code?](#not-using-claude-code)
-- [How it works](#how-it-works)
 
 ## Quickstart
 
@@ -43,9 +43,6 @@ Advisor   = claude-opus-5 (anthropic-cli)
 Workhorse = claude-haiku-4-5
 ```
 
-The bundled agent also escalates on its own — before architectural calls, after the same
-fix fails twice, and on tradeoffs it can't settle alone. It stays quiet on routine work.
-
 Want Gemini or GPT as the advisor instead of Claude? Just change `advisor_model` above —
 the provider is auto-detected from the name (`claude-*`, `gemini-*`, `gpt-*`). For a local
 model, also add `--config advisor_base_url=http://localhost:11434/v1`.
@@ -54,6 +51,76 @@ Route a one-off question to a different provider ad hoc (needs that vendor's CLI
 ```
 /second-opinion ask gemini what it thinks about this schema
 ```
+
+## How it works
+
+![Request lifecycle](docs/lifecycle.svg)
+
+| Command | Use it when... |
+|---|---|
+| `/consult` | You want to ask the advisor a direct question. |
+| `/second-opinion` | You want one question routed to a specific provider/model outside your config. |
+| `/advisor-model` | You want to show or change the advisor model — no restart, works in the desktop app too. |
+| `/doctor` | You want to check the install actually works — free by default, `--live` for a real round-trip. |
+
+| Component | Role |
+|---|---|
+| `agents/advisor.md` | Fallback advisor agent, used if the MCP tool is unavailable. |
+| `server/advisor_server.py` | The `consult_advisor` MCP tool and standalone CLI. |
+
+The advisor is **stateless** — it sees only what the workhorse sends, never your session.
+
+```bash
+python3 -m unittest discover -s server -p 'test_*.py'
+```
+
+## Using other models
+
+Not using Claude Code, or want the advisor reachable from somewhere else entirely? Clone
+the repo and point your MCP client at the server directly:
+
+```bash
+git clone https://github.com/alitahir6001/the-advisor.git
+```
+
+**Gemini CLI:**
+
+1. **Clone the repo** to a permanent location.
+2. **Add the MCP server**, from your home directory — not a subdirectory, see the note
+   below:
+   ```bash
+   # macOS / Linux
+   gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
+
+   # Windows — absolute paths, and 'python' not 'python3'
+   gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
+   ```
+3. **Link the skills.** The MCP server provides the tool, but `/consult` needs its skill
+   linked separately:
+   ```bash
+   gemini skill link ~/the-advisor/skills/consult
+   gemini skill link ~/the-advisor/skills/second-opinion
+   gemini skill link ~/the-advisor/skills/advisor-model
+   gemini skill link ~/the-advisor/skills/doctor
+   ```
+
+`-e` sets environment variables — same options as the [settings table](#changing-settings-later).
+
+If `gemini mcp list` shows nothing afterward: `gemini mcp add` scopes the config to
+whatever directory you ran it in, so running it from inside a project silently confines it
+there — either run it from your home directory as shown above, or move the `mcpServers`
+block it wrote into `~/.gemini/settings.json` by hand for global availability. JSON config
+doesn't expand `~/`, so Windows paths must be absolute.
+
+**No client at all** — one-shot, advice straight to stdout:
+
+```bash
+python3 the-advisor/server/advisor_server.py "Queue or direct call?" "10 req/min, user waits."
+```
+
+**Sanity-checking any of the above:** `/doctor` (or `python3 server/doctor.py` directly) is
+free by default — no advisor call, just what's configured and whether the CLI it needs
+resolves. Add `--live` for one real advisor call proving the whole pipeline actually works.
 
 ## Changing settings later
 
@@ -121,6 +188,9 @@ Claude Code entirely, so they survive.)
 
 ## Troubleshooting
 
+<details>
+<summary>Common problems and fixes</summary>
+
 **Changed a `--config`/`/plugin configure` setting, nothing happened** — restart Claude
 Code; it only reaches the MCP server on its next start. This doesn't apply to
 `/advisor-model`, which needs no restart.
@@ -152,66 +222,10 @@ your `gemini`/`claude` CLI. The server already resolves absolute paths automatic
 sure your Node/nvm paths are on your system PATH too.
 
 **Gemini CLI: `gemini mcp list` shows nothing after adding the server** — see
-[Not using Claude Code?](#not-using-claude-code) below; this is almost always the
-project-scoping gotcha.
+[Using other models](#using-other-models) above; this is almost always the project-scoping
+gotcha.
 
-## Not using Claude Code?
-
-Clone the repo and point your MCP client at the server directly:
-
-```bash
-git clone https://github.com/alitahir6001/the-advisor.git
-```
-
-**Gemini CLI:**
-
-1. **Clone the repo** to a permanent location.
-2. **Add the MCP server**, from your home directory — not a subdirectory, see the note
-   below:
-   ```bash
-   # macOS / Linux
-   gemini mcp add advisor python3 ~/the-advisor/server/advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
-
-   # Windows — absolute paths, and 'python' not 'python3'
-   gemini mcp add advisor python C:\path\to\the-advisor\server\advisor_server.py -e ADVISOR_MODEL=gemini-3.8-flash
-   ```
-3. **Link the skills.** The MCP server provides the tool, but `/consult` needs its skill
-   linked separately:
-   ```bash
-   gemini skill link ~/the-advisor/skills/consult
-   gemini skill link ~/the-advisor/skills/second-opinion
-   gemini skill link ~/the-advisor/skills/advisor-model
-   ```
-
-`-e` sets environment variables — same options as the [settings table](#changing-settings-later).
-
-If `gemini mcp list` shows nothing afterward: `gemini mcp add` scopes the config to
-whatever directory you ran it in, so running it from inside a project silently confines it
-there — either run it from your home directory as shown above, or move the `mcpServers`
-block it wrote into `~/.gemini/settings.json` by hand for global availability. JSON config
-doesn't expand `~/`, so Windows paths must be absolute.
-
-**No client at all** — one-shot, advice straight to stdout:
-
-```bash
-python3 the-advisor/server/advisor_server.py "Queue or direct call?" "10 req/min, user waits."
-```
-
-## How it works
-
-![Request lifecycle](docs/lifecycle.svg)
-
-| Component | Role |
-|---|---|
-| `agents/advisor.md` | Escalation rule. Always in context. |
-| `server/advisor_server.py` | The `consult_advisor` MCP tool and standalone CLI. |
-| `skills/` | `/consult` for direct questions, `/second-opinion` for one-off calls, `/advisor-model` to change the model. |
-
-The advisor is **stateless** — it sees only what the workhorse sends, never your session.
-
-```bash
-python3 -m unittest discover -s server -p 'test_*.py'
-```
+</details>
 
 ## Credits
 
