@@ -5,7 +5,7 @@ Stdlib only, to match the server's no-install promise:
 
     python3 -m unittest discover -s server -p 'test_*.py' -v
 
-Nine tests, one per concern. Nothing here touches the network, a vendor CLI,
+One test class per concern. Nothing here touches the network, a vendor CLI,
 or the real consult log.
 """
 
@@ -120,8 +120,7 @@ class TestJsonRpcLoop(unittest.TestCase):
             # Read before the temp dir goes away.
             entries = log_entries(log)
 
-        # Blank and malformed lines are skipped, the notification draws no reply,
-        # and every id after them is still answered - in order.
+        # Blank/malformed lines are skipped; every id after them still answered, in order.
         self.assertEqual([r["id"] for r in replies], [1, 2, 3, 4, 5, 6])
         self.assertTrue(all(r["jsonrpc"] == "2.0" for r in replies))
         by_id = {r["id"]: r for r in replies}
@@ -221,8 +220,7 @@ class TestProviderDispatch(unittest.TestCase):
                 if "min_max_tokens" in case:
                     self.assertGreaterEqual(body["max_tokens"], case["min_max_tokens"])
                 else:
-                    # Optional here; setting it would cap replies and newer
-                    # models reject the field outright.
+                    # Optional here - newer models reject the field outright.
                     self.assertNotIn("max_tokens", body)
 
         # Misconfiguration fails loudly, and names what to fix.
@@ -301,8 +299,7 @@ class TestAttributionHeader(unittest.TestCase):
         self.assertIn("anthropic-cli", first)
         self.assertIn("haiku-workhorse", second)
         self.assertEqual(body, "advice")
-        # The header is presentation only - the log keeps the raw reply, and
-        # the advisor is never asked to produce it.
+        # The header is presentation only - the log keeps the raw reply.
         self.assertEqual(entries[0]["reply"], "advice")
         self.assertNotIn("Workhorse", run.call_args.args[0][-1])
 
@@ -339,8 +336,7 @@ class TestProviderInference(unittest.TestCase):
                 self.assertEqual(adv.infer_provider(model, base_url), expected)
 
     def test_explicit_provider_overrides_inference(self):
-        # A Gemini model with an explicit anthropic-cli provider: the explicit
-        # value wins, even though inference would say gemini-cli.
+        # Explicit provider wins even though a gemini-* model would infer gemini-cli.
         with env(ADVISOR_PROVIDER="anthropic-cli",
                  ADVISOR_MODEL="gemini-3.1-pro"), temp_log(), \
                 mock.patch.object(adv.subprocess, "run",
@@ -461,6 +457,43 @@ class TestModelOverrideFile(unittest.TestCase):
                     adv.consult("q", "c")
             self.assertIn("/advisor-model", str(e.exception))
             run.assert_not_called()
+
+
+class TestProvenance(unittest.TestCase):
+    """Which real input won must be recorded, not just the value it produced -
+    a resolved model/provider is not proof of where it came from (rules.md's
+    lead rule: check the effect one level downstream of the value itself).
+    Log-only on purpose: this is a post-mortem/doctor.py signal, not
+    something to clutter every user-facing reply with."""
+
+    def test_model_and_provider_source_are_named_in_the_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            override_path = os.path.join(d, "model")
+            with open(override_path, "w") as f:
+                f.write("file-model\n")
+            with env(ADVISOR_MODEL="env-model"), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", override_path), \
+                    temp_log() as log, \
+                    mock.patch.object(adv.subprocess, "run",
+                                      return_value=completed(stdout="reply")):
+                result = adv.consult("q", "c")
+                self.assertNotIn("model:", result)
+                self.assertNotIn("provider:", result)
+                entry, = log_entries(log)
+                self.assertIn("override file", entry["model_source"])
+                self.assertEqual(entry["provider_source"], "inferred from model name")
+
+        with tempfile.TemporaryDirectory() as d:
+            missing_path = os.path.join(d, "model")  # never created
+            with env(ADVISOR_MODEL="env-model", ADVISOR_PROVIDER="anthropic-cli"), \
+                    mock.patch.object(adv, "MODEL_OVERRIDE_PATH", missing_path), \
+                    temp_log() as log, \
+                    mock.patch.object(adv.subprocess, "run",
+                                      return_value=completed(stdout="reply")):
+                adv.consult("q", "c")
+                entry, = log_entries(log)
+                self.assertEqual(entry["model_source"], "ADVISOR_MODEL")
+                self.assertEqual(entry["provider_source"], "ADVISOR_PROVIDER")
 
 
 class TestByoEndpoint(unittest.TestCase):
