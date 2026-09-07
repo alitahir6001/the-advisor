@@ -65,16 +65,35 @@ and CLI:
 Takes effect on the very next `/consult`. No restart. Run it with no argument to see the
 current value.
 
-**Anything else** (`advisor_provider`, `advisor_base_url`, `advisor_api_key`,
-`python_command`) — no skill for those yet:
+**Provider, base URL, or API key** (also `python_command`) — no skill for those yet, and
+how you set them depends on where you're running:
 
 | Where you are | How |
 |---|---|
 | Terminal | `/plugin configure the-advisor@the-advisor`, then restart Claude Code |
-| Desktop app | re-run the [Quickstart](#quickstart) install command with the new `--config` value |
+| Desktop app | set a real system environment variable, then fully quit and reopen the app — see below |
+
+The desktop app resolves this plugin under a different internal name than the terminal
+does, so anything saved via `--config`/`/plugin configure` lands somewhere the desktop app
+never looks (see [Troubleshooting](#troubleshooting)). A plain OS environment variable
+skips that entirely — the server just reads it directly, no matter which app asked.
+Verified on macOS:
+
+```bash
+launchctl setenv ADVISOR_PROVIDER openai-compatible
+launchctl setenv ADVISOR_BASE_URL http://localhost:11434/v1
+launchctl setenv ADVISOR_API_KEY sk-...
+```
+
+then fully quit (Cmd+Q) and reopen the desktop app — it only picks up the new value on
+launch. This lasts for your current login session; it won't survive a reboot unless you
+also add it to a login item or shell profile. **Windows:** the equivalent should be `setx
+ADVISOR_PROVIDER openai-compatible` (or System Properties → Environment Variables) — not
+yet verified for this plugin.
 
 Uninstalling clears every `--config` setting — pass `--config` again on reinstall. (The
-`/advisor-model` override lives outside Claude Code entirely, so it survives.)
+`/advisor-model` override and the environment-variable method above both live outside
+Claude Code entirely, so they survive.)
 
 <details>
 <summary>All settings, and every provider's <code>advisor_provider</code> value</summary>
@@ -120,8 +139,10 @@ command with `--config advisor_model=...`.
 
 **"Not logged in"** — run `claude setup-token`. The bundled agent fills in meanwhile.
 
-**Desktop app can't see an API key you set in `~/.zshrc`** — it doesn't inherit your
-shell's environment. Set it via `/plugin configure` instead.
+**Desktop app can't see a key from `~/.zshrc`, `/plugin configure`, or `--config`** — none
+of those reach the desktop app's copy of this plugin. Set it as a real system environment
+variable instead (`launchctl setenv` on macOS) and fully restart the app — see
+[Changing settings later](#changing-settings-later).
 
 **Windows: plugin won't start** — set `python_command` to `python` via `/plugin configure`
 (or pass it at install, see [Quickstart](#quickstart)).
