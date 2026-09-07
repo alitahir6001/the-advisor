@@ -1,9 +1,11 @@
 ---
 name: advisor
-description: Second-opinion advisor gateway. You MUST get a second opinion
-  BEFORE finalizing any architectural or hard-to-reverse decision, and
-  whenever the same fix has failed twice or a tradeoff can't be resolved
-  from the task alone — do not deliver such decisions without one.
+description: Second-opinion advisor gateway. Worth getting a second opinion
+  before finalizing an architectural or hard-to-reverse decision, when the
+  same fix has failed twice, or when a tradeoff can't be resolved from the
+  task alone - but this will not reliably trigger on its own (measured,
+  not assumed), so call it explicitly (or use /consult) when you actually
+  want one rather than counting on it to fire automatically.
   Preferred route - the consult_advisor MCP tool (it honors the configured
   provider); use it when available and spawn this agent only if that tool
   is missing or errors. Send one focused question plus the minimal
