@@ -37,12 +37,10 @@ TOOL_DESCRIPTION = (
     "for routine work you can complete yourself."
 )
 
-# Opt in to the CLI's own default model. Only an explicit value gets it -
-# an unset ADVISOR_MODEL is an accident far more often than an intention.
+# Opt-in only: an unset ADVISOR_MODEL is more often an accident than intent.
 CLI_DEFAULT = "cli-default"
 
-# No default model IDs on purpose: they go stale, and pinning one would
-# undercut the point of keeping the advisor identity in config.
+# No default model IDs - they go stale and undercut per-user config.
 PROVIDERS = (
     "anthropic-cli",
     "gemini-cli",
@@ -51,8 +49,7 @@ PROVIDERS = (
     "openai-compatible",
 )
 
-# openai-compatible is openai-api pointed elsewhere. Same wire format, so the
-# only real difference is that it has no default host and no implied vendor.
+# openai-compatible is openai-api pointed elsewhere - no default host.
 API_BASES = {
     "anthropic-api": "https://api.anthropic.com/v1",
     "openai-api": "https://api.openai.com/v1",
@@ -74,11 +71,8 @@ def infer_provider(model, base_url=""):
     return "anthropic-cli"
 
 
-# Fixed, identity-independent directory - same reasoning as
-# read_model_override() below, applied to the log. CLAUDE_PLUGIN_DATA is
-# keyed by plugin identity (desktop app vs CLI), so logging there split one
-# user's history into two files; this unifies them and survives version
-# bumps, since it's outside the versioned cache path too.
+# Fixed, identity-independent path - desktop app and CLI resolve this
+# plugin differently otherwise (see CLAUDE.md gotcha 25).
 THE_ADVISOR_DIR = os.path.expanduser("~/.the-advisor")
 
 LOG_PATH = os.environ.get("ADVISOR_LOG") or os.path.join(
@@ -96,11 +90,8 @@ MODEL_OVERRIDE_PATH = os.path.join(THE_ADVISOR_DIR, "model")
 
 
 def read_model_override():
-    # A file, not a userConfig option, on purpose: userConfig is keyed by
-    # plugin identity, and the desktop app and CLI can resolve to different
-    # identities (see README) - a GUI-only user could be unable to reach
-    # theirs at all. A fixed path outside Claude Code's own config sidesteps
-    # that, and is re-read on every call, so a change needs no restart.
+    # File, not userConfig - identity-independent, re-read every call, no
+    # restart needed (see CLAUDE.md gotcha 21).
     try:
         with open(MODEL_OVERRIDE_PATH) as f:
             return f.read().strip() or None
@@ -108,13 +99,15 @@ def read_model_override():
         return None
 
 
-def log_consult(provider, model, question, context, reply, error, start):
-    # Full verbatim reply on purpose (advisor-reviewed decision, 2026-07-12):
-    # summaries lose the conditional caveats that post-mortems need.
+def log_consult(provider, model, question, context, reply, error, start,
+                 model_source=None, provider_source=None):
+    # Full verbatim reply on purpose and confirm the model being used.
     entry = {
         "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "provider": provider,
+        "provider_source": provider_source,
         "model": model,
+        "model_source": model_source,
         "elapsed_s": round(time.time() - start, 1),
         "question": question,
         "context": context,
@@ -130,10 +123,6 @@ def log_consult(provider, model, question, context, reply, error, start):
 
 
 def attribution(provider, model, workhorse):
-    # Printed on every reply: a consult that silently ran the wrong model used
-    # to be indistinguishable from a correct one. The workhorse cannot be
-    # detected from here - Claude Code puts no model in the server's env - so
-    # it is whatever the caller reported, or nothing.
     return (
         f"Advisor   = {model} ({provider})\n"
         f"Workhorse = {workhorse or 'not reported'}"
@@ -148,10 +137,8 @@ def build_prompt(question, context):
 
 
 def subprocess_env():
-    # claude -p refuses/misbehaves when it inherits the parent session's
-    # CLAUDE* markers; strip them so the advisor runs as a fresh session.
-    # CLAUDE_CODE_OAUTH_TOKEN is the exception - stripping it logs the
-    # subprocess out, which is the whole auth for the anthropic-cli path.
+    # Strip inherited CLAUDE* vars so the subprocess runs fresh, except the
+    # OAuth token - stripping it would log the CLI out.
     keep = {"CLAUDE_CODE_OAUTH_TOKEN"}
     return {
         k: v
@@ -161,14 +148,12 @@ def subprocess_env():
 
 
 def run_cli(cmd):
-    # Resolve absolute path on Windows to avoid WinError 2 if cmd.exe pathing
-    # differs from Python's or if the command is a shell script.
+    # Resolve absolute path - avoids WinError 2 on Windows.
     resolved = shutil.which(cmd[0])
     if resolved:
         cmd[0] = resolved
 
-    # stdin=DEVNULL matters: without it the child inherits this server's stdin,
-    # which is the live JSON-RPC pipe, and the CLI stalls waiting on it.
+    # stdin=DEVNULL: otherwise the child inherits the live JSON-RPC pipe and stalls.
     proc = subprocess.run(
         cmd,
         capture_output=True,
@@ -196,11 +181,8 @@ def api_base(provider):
 
 
 def api_key(var):
-    # ADVISOR_API_KEY first so a GUI-set userConfig value wins, then the vendor
-    # variable so existing shell setups keep working. Unset userConfig keys
-    # arrive as "", which is why empty is treated as absent, not as a key.
-    # Local servers behind ADVISOR_BASE_URL want no key, so only demand one
-    # when talking to the vendor's own host.
+    # ADVISOR_API_KEY wins, else the vendor var; no key required for a local
+    # server behind ADVISOR_BASE_URL.
     key = os.environ.get("ADVISOR_API_KEY") or os.environ.get(var)
     if not key and not os.environ.get("ADVISOR_BASE_URL"):
         raise RuntimeError(f"neither ADVISOR_API_KEY nor {var} is set")
@@ -219,13 +201,17 @@ def http_json(url, headers, body):
 
 
 def consult(question, context, workhorse=None):
-    # Model first: the provider can be inferred from it. The override file
-    # wins over ADVISOR_MODEL - see read_model_override() for why.
-    model = read_model_override() or os.environ.get("ADVISOR_MODEL") or None
+    # Override file wins over ADVISOR_MODEL (CLAUDE.md gotcha 21); sources are
+    # recorded here, at the point of decision, for the log (gotcha 26).
+    override = read_model_override()
+    if override:
+        model, model_source = override, "override file (~/.the-advisor/model)"
+    elif os.environ.get("ADVISOR_MODEL"):
+        model, model_source = os.environ["ADVISOR_MODEL"], "ADVISOR_MODEL"
+    else:
+        model, model_source = None, None
     if not model:
-        # An unset model used to mean "let the CLI decide", which silently made
-        # the advisor whatever the workhorse already was - the same model twice,
-        # with a log that looked healthy. Refuse instead; say so in the reply.
+        # Refuse rather than silently reuse the workhorse's own model (gotcha 11).
         raise RuntimeError(
             "ADVISOR_MODEL is not set. Easiest fix, no restart needed:\n"
             "  /advisor-model <model>\n"
@@ -236,9 +222,11 @@ def consult(question, context, workhorse=None):
             "default. (/plugin configure also works, but only in a terminal.)"
         )
     # `or` not a get() default: an unset userConfig key substitutes as "".
-    provider = os.environ.get("ADVISOR_PROVIDER") or infer_provider(
-        model, os.environ.get("ADVISOR_BASE_URL", "")
-    )
+    if os.environ.get("ADVISOR_PROVIDER"):
+        provider, provider_source = os.environ["ADVISOR_PROVIDER"], "ADVISOR_PROVIDER"
+    else:
+        provider = infer_provider(model, os.environ.get("ADVISOR_BASE_URL", ""))
+        provider_source = "inferred from model name"
     if provider not in PROVIDERS:
         raise RuntimeError(
             f"unknown ADVISOR_PROVIDER {provider!r}; expected one of "
@@ -248,10 +236,12 @@ def consult(question, context, workhorse=None):
     start = time.time()
     try:
         reply = _dispatch(provider, model, prompt)
-        log_consult(provider, model, question, context, reply, None, start)
+        log_consult(provider, model, question, context, reply, None, start,
+                    model_source, provider_source)
         return attribution(provider, model, workhorse) + "\n\n" + reply
     except Exception as e:
-        log_consult(provider, model, question, context, None, str(e), start)
+        log_consult(provider, model, question, context, None, str(e), start,
+                    model_source, provider_source)
         raise
 
 
@@ -279,8 +269,7 @@ def _dispatch(provider, model, prompt):
         )
 
     if provider == "anthropic-api":
-        # Base first: for a misconfigured provider the missing host is the
-        # more useful complaint than a key you may not even need.
+        # Base first - a missing host is a more useful error than a maybe-unneeded key.
         base = api_base(provider)
         key = api_key("ANTHROPIC_API_KEY")
         headers = {"anthropic-version": "2023-06-01"}
@@ -309,8 +298,7 @@ def _dispatch(provider, model, prompt):
         headers,
         {
             "model": model,
-            # No max_tokens on purpose: optional here (unset means no cap), and
-            # newer models reject it in favour of max_completion_tokens.
+            # No max_tokens - optional here, and newer models reject it for max_completion_tokens.
             "messages": [
                 {"role": "system", "content": ADVISOR_SYSTEM},
                 {"role": "user", "content": prompt},
