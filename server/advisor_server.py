@@ -40,6 +40,10 @@ TOOL_DESCRIPTION = (
 # Opt-in only: an unset ADVISOR_MODEL is more often an accident than intent.
 CLI_DEFAULT = "cli-default"
 
+# Without --effort, `claude -p` inherits the user's global effortLevel, so the
+# advisor silently runs as weak as their daily driver. anthropic-cli only.
+DEFAULT_EFFORT = "max"
+
 # No default model IDs - they go stale and undercut per-user config.
 PROVIDERS = (
     "anthropic-cli",
@@ -100,7 +104,8 @@ def read_model_override():
 
 
 def log_consult(provider, model, question, context, reply, error, start,
-                 model_source=None, provider_source=None):
+                 model_source=None, provider_source=None,
+                 effort=None, effort_source=None):
     # Full verbatim reply on purpose and confirm the model being used.
     entry = {
         "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -108,6 +113,8 @@ def log_consult(provider, model, question, context, reply, error, start,
         "provider_source": provider_source,
         "model": model,
         "model_source": model_source,
+        "effort": effort,
+        "effort_source": effort_source,
         "elapsed_s": round(time.time() - start, 1),
         "question": question,
         "context": context,
@@ -232,20 +239,27 @@ def consult(question, context, workhorse=None):
             f"unknown ADVISOR_PROVIDER {provider!r}; expected one of "
             + ", ".join(PROVIDERS)
         )
+    # Logged only where it is actually sent - a gemini consult must not claim "max".
+    if provider != "anthropic-cli":
+        effort, effort_source = None, None
+    elif os.environ.get("ADVISOR_EFFORT"):
+        effort, effort_source = os.environ["ADVISOR_EFFORT"], "ADVISOR_EFFORT"
+    else:
+        effort, effort_source = DEFAULT_EFFORT, "default"
     prompt = build_prompt(question, context)
     start = time.time()
     try:
-        reply = _dispatch(provider, model, prompt)
+        reply = _dispatch(provider, model, prompt, effort)
         log_consult(provider, model, question, context, reply, None, start,
-                    model_source, provider_source)
+                    model_source, provider_source, effort, effort_source)
         return attribution(provider, model, workhorse) + "\n\n" + reply
     except Exception as e:
         log_consult(provider, model, question, context, None, str(e), start,
-                    model_source, provider_source)
+                    model_source, provider_source, effort, effort_source)
         raise
 
 
-def _dispatch(provider, model, prompt):
+def _dispatch(provider, model, prompt, effort=None):
     # The one way to get the CLI's own default, and it has to be asked for.
     if model == CLI_DEFAULT:
         model = None
@@ -254,6 +268,8 @@ def _dispatch(provider, model, prompt):
         cmd = ["claude", "-p", prompt]
         if model:
             cmd += ["--model", model]
+        if effort and effort != CLI_DEFAULT:
+            cmd += ["--effort", effort]
         return run_cli(cmd)
 
     if provider == "gemini-cli":
@@ -346,7 +362,7 @@ def handle(msg):
             ),
             "capabilities": {"tools": {}},
             # Kept in step with .claude-plugin/plugin.json by the test suite.
-            "serverInfo": {"name": "advisor", "version": "0.4.0"},
+            "serverInfo": {"name": "advisor", "version": "0.5.0"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
