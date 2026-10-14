@@ -171,6 +171,7 @@ Claude Code entirely, so they survive.)
 | `advisor_provider` | `ADVISOR_PROVIDER` | Auto-detected; override for edge cases. |
 | `advisor_base_url` | `ADVISOR_BASE_URL` | For local/gateway endpoints. Makes the key optional. |
 | `advisor_api_key` | `ADVISOR_API_KEY` | For `*-api` providers. Falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. |
+| `advisor_effort` | `ADVISOR_EFFORT` | `anthropic-cli` only. Default `max` (slower and costlier than your own setting); `low`/`medium`/`high`/`xhigh`, or `cli-default` to send no flag. |
 | `python_command` | — | Default `python3`. Set to `python` or `py` on Windows. |
 
 `*-cli` providers shell out to a CLI you're signed into, billing your subscription.
