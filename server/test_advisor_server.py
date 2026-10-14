@@ -29,6 +29,7 @@ ADVISOR_VARS = (
     "ADVISOR_MODEL",
     "ADVISOR_BASE_URL",
     "ADVISOR_API_KEY",
+    "ADVISOR_EFFORT",
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
 )
@@ -106,7 +107,7 @@ class TestJsonRpcLoop(unittest.TestCase):
             json.dumps({"jsonrpc": "2.0", "id": 6, "method": "ping"}),
         ]
 
-        def fake_dispatch(provider, model, prompt):
+        def fake_dispatch(provider, model, prompt, effort=None):
             if "boom" in prompt:
                 raise RuntimeError("provider exploded")
             return "advice"
@@ -162,8 +163,10 @@ class TestProviderDispatch(unittest.TestCase):
 
         cli_cases = [
             # 'cli-default' is the only way to omit the flag, and it is opt-in.
-            ("anthropic-cli", adv.CLI_DEFAULT, ["claude", "-p", prompt]),
-            ("anthropic-cli", "big", ["claude", "-p", prompt, "--model", "big"]),
+            ("anthropic-cli", adv.CLI_DEFAULT,
+             ["claude", "-p", prompt, "--effort", "max"]),
+            ("anthropic-cli", "big",
+             ["claude", "-p", prompt, "--model", "big", "--effort", "max"]),
             ("gemini-cli", adv.CLI_DEFAULT, ["gemini", "-p", prompt]),
             # Note the flag order flip: -m comes before -p here, not after.
             ("gemini-cli", "gem", ["gemini", "-m", "gem", "-p", prompt]),
@@ -494,6 +497,46 @@ class TestProvenance(unittest.TestCase):
                 entry, = log_entries(log)
                 self.assertEqual(entry["model_source"], "ADVISOR_MODEL")
                 self.assertEqual(entry["provider_source"], "ADVISOR_PROVIDER")
+
+
+class TestEffort(unittest.TestCase):
+    """Without --effort the advisor inherits the user's own effortLevel, so it
+    can silently run weaker than intended. anthropic-cli only."""
+
+    def run_consult(self, provider="anthropic-cli", **overrides):
+        with env(ADVISOR_PROVIDER=provider, **overrides), temp_log() as log, \
+                mock.patch.object(adv.subprocess, "run",
+                                  return_value=completed()) as run:
+            adv.consult("q", "c")
+            return run.call_args.args[0], log_entries(log)[0]
+
+    def test_default_is_max_and_is_logged_as_default(self):
+        cmd, entry = self.run_consult()
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "max")
+        self.assertEqual((entry["effort"], entry["effort_source"]), ("max", "default"))
+
+    def test_env_overrides_and_blank_falls_back(self):
+        cmd, entry = self.run_consult(ADVISOR_EFFORT="high")
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "high")
+        self.assertEqual((entry["effort"], entry["effort_source"]),
+                         ("high", "ADVISOR_EFFORT"))
+
+        # An unset userConfig option arrives as "", not absent.
+        cmd, entry = self.run_consult(ADVISOR_EFFORT="")
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "max")
+        self.assertEqual(entry["effort_source"], "default")
+
+    def test_cli_default_omits_the_flag(self):
+        cmd, entry = self.run_consult(ADVISOR_EFFORT=adv.CLI_DEFAULT)
+        self.assertNotIn("--effort", cmd)
+        self.assertEqual(entry["effort"], adv.CLI_DEFAULT)
+
+    def test_other_providers_get_no_flag_and_no_false_log_claim(self):
+        cmd, entry = self.run_consult(
+            provider="gemini-cli", ADVISOR_MODEL="gemini-x")
+        self.assertNotIn("--effort", cmd)
+        self.assertIsNone(entry["effort"])
+        self.assertIsNone(entry["effort_source"])
 
 
 class TestByoEndpoint(unittest.TestCase):
