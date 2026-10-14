@@ -50,8 +50,13 @@ def quick_checks():
     passed &= check("provider resolves to a known provider", provider in adv.PROVIDERS,
                      f"{provider} (from {provider_source})")
 
+    if provider == "anthropic-cli":
+        env_effort = os.environ.get("ADVISOR_EFFORT")
+        print(f"[INFO] effort: {env_effort or adv.DEFAULT_EFFORT} "
+              f"(from {'ADVISOR_EFFORT' if env_effort else 'default'})")
+
     if provider in ("anthropic-cli", "gemini-cli"):
-        cli = "claude" if provider == "anthropic-cli" else "gemini"
+        cli ="claude" if provider == "anthropic-cli" else "gemini"
         resolved = shutil.which(cli)
         passed &= check(f"{cli} CLI resolves on PATH", bool(resolved), resolved or "not found")
     elif provider == "openai-compatible":
@@ -106,6 +111,13 @@ def live_check():
             f"model_source={last.get('model_source')!r}, "
             f"provider_source={last.get('provider_source')!r}",
         )
+        if last["provider"] == "anthropic-cli":
+            passed &= check(
+                "log entry records the effort sent to the CLI",
+                bool(last.get("effort")) and bool(last.get("effort_source")),
+                f"effort={last.get('effort')!r}, "
+                f"effort_source={last.get('effort_source')!r}",
+            )
     return passed
 
 
