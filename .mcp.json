@@ -7,7 +7,8 @@
         "ADVISOR_PROVIDER": "${user_config.advisor_provider}",
         "ADVISOR_MODEL": "${user_config.advisor_model}",
         "ADVISOR_BASE_URL": "${user_config.advisor_base_url}",
-        "ADVISOR_API_KEY": "${user_config.advisor_api_key}"
+        "ADVISOR_API_KEY": "${user_config.advisor_api_key}",
+        "ADVISOR_EFFORT": "${user_config.advisor_effort}"
       }
     }
   }
