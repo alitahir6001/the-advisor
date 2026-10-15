@@ -33,7 +33,8 @@ TOOL_DESCRIPTION = (
     "architectural or hard-to-reverse decisions, twice-failed fixes, and "
     "tradeoffs unresolvable from the task. Send one focused question; put "
     "options, constraints, and what was already tried in context. The "
-    "advisor is stateless and sees only what you send. Never consult it "
+    "advisor is stateless and sees only what you send. Expect a hard "
+    "question to take several minutes at max effort. Never consult it "
     "for routine work you can complete yourself."
 )
 
@@ -169,7 +170,7 @@ def run_cli(cmd):
         cmd,
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=1800,
         env=subprocess_env(),
         stdin=subprocess.DEVNULL,
         shell=os.name == "nt",
