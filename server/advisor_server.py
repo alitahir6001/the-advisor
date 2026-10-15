@@ -367,7 +367,7 @@ def handle(msg):
             ),
             "capabilities": {"tools": {}},
             # Kept in step with .claude-plugin/plugin.json by the test suite.
-            "serverInfo": {"name": "advisor", "version": "0.5.0"},
+            "serverInfo": {"name": "advisor", "version": "0.5.1"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
