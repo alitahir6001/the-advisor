@@ -164,9 +164,10 @@ class TestProviderDispatch(unittest.TestCase):
         cli_cases = [
             # 'cli-default' is the only way to omit the flag, and it is opt-in.
             ("anthropic-cli", adv.CLI_DEFAULT,
-             ["claude", "-p", prompt, "--effort", "max"]),
+             ["claude", "-p", prompt, "--effort", "max"] + adv.NO_TOOLS),
             ("anthropic-cli", "big",
-             ["claude", "-p", prompt, "--model", "big", "--effort", "max"]),
+             ["claude", "-p", prompt, "--model", "big", "--effort", "max"]
+             + adv.NO_TOOLS),
             ("gemini-cli", adv.CLI_DEFAULT, ["gemini", "-p", prompt]),
             # Note the flag order flip: -m comes before -p here, not after.
             ("gemini-cli", "gem", ["gemini", "-m", "gem", "-p", prompt]),
@@ -530,6 +531,11 @@ class TestEffort(unittest.TestCase):
         cmd, entry = self.run_consult(ADVISOR_EFFORT=adv.CLI_DEFAULT)
         self.assertNotIn("--effort", cmd)
         self.assertEqual(entry["effort"], adv.CLI_DEFAULT)
+
+    def test_advisor_runs_toolless_with_the_variadic_flag_last(self):
+        cmd, _ = self.run_consult()
+        self.assertEqual(cmd[-2:], ["--tools", ""])
+        self.assertIn("--strict-mcp-config", cmd[:-2])
 
     def test_other_providers_get_no_flag_and_no_false_log_claim(self):
         cmd, entry = self.run_consult(

@@ -44,6 +44,10 @@ CLI_DEFAULT = "cli-default"
 # advisor silently runs as weak as their daily driver. anthropic-cli only.
 DEFAULT_EFFORT = "max"
 
+# One turn only: each tool call costs another max-effort think (a consult ran 19
+# calls and died at 300s). --tools is variadic, so it must stay last.
+NO_TOOLS = ["--strict-mcp-config", "--tools", ""]
+
 # No default model IDs - they go stale and undercut per-user config.
 PROVIDERS = (
     "anthropic-cli",
@@ -270,7 +274,7 @@ def _dispatch(provider, model, prompt, effort=None):
             cmd += ["--model", model]
         if effort and effort != CLI_DEFAULT:
             cmd += ["--effort", effort]
-        return run_cli(cmd)
+        return run_cli(cmd + NO_TOOLS)
 
     if provider == "gemini-cli":
         cmd = ["gemini", "-p", prompt]
