@@ -165,6 +165,8 @@ def run_cli(cmd):
     if resolved:
         cmd[0] = resolved
 
+    # cmd.exe truncates multiline arguments; native executables must bypass it.
+    needs_shell = os.name == "nt" and cmd[0].lower().endswith((".cmd", ".bat"))
     # stdin=DEVNULL: otherwise the child inherits the live JSON-RPC pipe and stalls.
     proc = subprocess.run(
         cmd,
@@ -173,7 +175,7 @@ def run_cli(cmd):
         timeout=1800,
         env=subprocess_env(),
         stdin=subprocess.DEVNULL,
-        shell=os.name == "nt",
+        shell=needs_shell,
     )
     if proc.returncode != 0:
         # CLIs report auth failures on stdout, so stderr alone hides the cause.

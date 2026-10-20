@@ -630,6 +630,17 @@ class TestStandaloneCli(unittest.TestCase):
 class TestCliInvocation(unittest.TestCase):
     """Three fixes with no visible marker: session isolation, stdin, error text."""
 
+    def test_native_cli_receives_full_prompt_and_trailing_flags(self):
+        prompt = adv.build_prompt('Reply with "OK"; keep %PATH% and & literal.',
+                                  "first line\nsecond line")
+        arguments = [prompt, "--model", "claude-opus-5-5", "--tools", ""]
+        reply = adv.run_cli([
+            sys.executable, "-c",
+            "import json,sys; print(json.dumps(sys.argv[1:]))",
+            *arguments,
+        ])
+        self.assertEqual(json.loads(reply), arguments)
+
     def test_child_is_isolated_authenticated_and_reports_real_cause(self):
         parent = {
             "CLAUDE_CODE_ENTRYPOINT": "cli",
