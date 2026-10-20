@@ -164,13 +164,13 @@ class TestProviderDispatch(unittest.TestCase):
         cli_cases = [
             # 'cli-default' is the only way to omit the flag, and it is opt-in.
             ("anthropic-cli", adv.CLI_DEFAULT,
-             ["claude", "-p", prompt, "--effort", "max"] + adv.NO_TOOLS),
+             ["claude", "-p", "--effort", "max"] + adv.NO_TOOLS),
             ("anthropic-cli", "big",
-             ["claude", "-p", prompt, "--model", "big", "--effort", "max"]
+             ["claude", "-p", "--model", "big", "--effort", "max"]
              + adv.NO_TOOLS),
-            ("gemini-cli", adv.CLI_DEFAULT, ["gemini", "-p", prompt]),
+            ("gemini-cli", adv.CLI_DEFAULT, ["gemini", "-p", ""]),
             # Note the flag order flip: -m comes before -p here, not after.
-            ("gemini-cli", "gem", ["gemini", "-m", "gem", "-p", prompt]),
+            ("gemini-cli", "gem", ["gemini", "-m", "gem", "-p", ""]),
         ]
         for provider, model, expected in cli_cases:
             with self.subTest(provider=provider, model=model):
@@ -181,6 +181,8 @@ class TestProviderDispatch(unittest.TestCase):
                                           return_value=completed()) as run:
                     self.assertTrue(adv.consult("q", "c").endswith("\n\nadvice"))
                 self.assertEqual(run.call_args.args[0], expected)
+                # In argv, cmd.exe would cut a multiline prompt at its first newline.
+                self.assertEqual(run.call_args.kwargs["input"], prompt)
 
         api_cases = [
             {
@@ -630,16 +632,16 @@ class TestStandaloneCli(unittest.TestCase):
 class TestCliInvocation(unittest.TestCase):
     """Three fixes with no visible marker: session isolation, stdin, error text."""
 
-    def test_native_cli_receives_full_prompt_and_trailing_flags(self):
+    def test_cli_receives_full_prompt_on_stdin_and_trailing_flags(self):
         prompt = adv.build_prompt('Reply with "OK"; keep %PATH% and & literal.',
                                   "first line\nsecond line")
-        arguments = [prompt, "--model", "claude-opus-5-5", "--tools", ""]
+        flags = ["--model", "claude-opus-5-5", "--tools", ""]
         reply = adv.run_cli([
             sys.executable, "-c",
-            "import json,sys; print(json.dumps(sys.argv[1:]))",
-            *arguments,
-        ])
-        self.assertEqual(json.loads(reply), arguments)
+            "import json,sys; print(json.dumps([sys.stdin.read(), sys.argv[1:]]))",
+            *flags,
+        ], prompt)
+        self.assertEqual(json.loads(reply), [prompt, flags])
 
     def test_child_is_isolated_authenticated_and_reports_real_cause(self):
         parent = {
@@ -662,8 +664,9 @@ class TestCliInvocation(unittest.TestCase):
         # ...except the token, which is the entire auth for this provider.
         self.assertEqual(child["CLAUDE_CODE_OAUTH_TOKEN"], "fake-token-not-a-real-key")
         self.assertEqual(child["PATH"], "/usr/bin")
-        # Without DEVNULL the child inherits our live JSON-RPC pipe and stalls.
-        self.assertIs(kwargs["stdin"], subprocess.DEVNULL)
+        # input= gives the child its own pipe; inheriting our JSON-RPC pipe stalls it.
+        self.assertEqual(kwargs["input"], adv.build_prompt("q", "c"))
+        self.assertNotIn("stdin", kwargs)
         self.assertTrue(kwargs["capture_output"])
         self.assertTrue(kwargs["text"])
         self.assertGreater(kwargs["timeout"], 0)

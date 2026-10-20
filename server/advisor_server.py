@@ -159,7 +159,7 @@ def subprocess_env():
     }
 
 
-def run_cli(cmd):
+def run_cli(cmd, prompt):
     # Resolve absolute path - avoids WinError 2 on Windows.
     resolved = shutil.which(cmd[0])
     if resolved:
@@ -167,14 +167,15 @@ def run_cli(cmd):
 
     # cmd.exe truncates multiline arguments; native executables must bypass it.
     needs_shell = os.name == "nt" and cmd[0].lower().endswith((".cmd", ".bat"))
-    # stdin=DEVNULL: otherwise the child inherits the live JSON-RPC pipe and stalls.
+    # The prompt goes over stdin so .cmd wrappers can't cut it; input= also keeps the
+    # child off our live JSON-RPC pipe, which it would otherwise inherit and stall on.
     proc = subprocess.run(
         cmd,
+        input=prompt,
         capture_output=True,
         text=True,
         timeout=1800,
         env=subprocess_env(),
-        stdin=subprocess.DEVNULL,
         shell=needs_shell,
     )
     if proc.returncode != 0:
@@ -272,18 +273,19 @@ def _dispatch(provider, model, prompt, effort=None):
         model = None
 
     if provider == "anthropic-cli":
-        cmd = ["claude", "-p", prompt]
+        cmd = ["claude", "-p"]
         if model:
             cmd += ["--model", model]
         if effort and effort != CLI_DEFAULT:
             cmd += ["--effort", effort]
-        return run_cli(cmd + NO_TOOLS)
+        return run_cli(cmd + NO_TOOLS, prompt)
 
     if provider == "gemini-cli":
-        cmd = ["gemini", "-p", prompt]
+        # -p "" is still headless; gemini appends -p's value to the prompt read from stdin.
+        cmd = ["gemini", "-p", ""]
         if model:
-            cmd = ["gemini", "-m", model, "-p", prompt]
-        return run_cli(cmd)
+            cmd = ["gemini", "-m", model, "-p", ""]
+        return run_cli(cmd, prompt)
 
     if not model:
         raise RuntimeError(
