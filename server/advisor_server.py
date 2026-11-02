@@ -81,7 +81,7 @@ def infer_provider(model, base_url=""):
 
 
 # Fixed, identity-independent path - desktop app and CLI resolve this
-# plugin differently otherwise (see CLAUDE.md gotcha 25).
+# plugin differently otherwise (see CLAUDE.md gotchas 15, 21).
 THE_ADVISOR_DIR = os.path.expanduser("~/.the-advisor")
 
 LOG_PATH = os.environ.get("ADVISOR_LOG") or os.path.join(
@@ -371,7 +371,7 @@ def handle(msg):
             ),
             "capabilities": {"tools": {}},
             # Kept in step with .claude-plugin/plugin.json by the test suite.
-            "serverInfo": {"name": "advisor", "version": "0.5.2"},
+            "serverInfo": {"name": "advisor", "version": "0.5.3"},
         }
     if method == "tools/list":
         return {"tools": [TOOL]}
