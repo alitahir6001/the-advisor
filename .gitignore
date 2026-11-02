@@ -1,5 +1,3 @@
 __pycache__/
 *.pyc
 consult-log.jsonl
-.ai/
-CLAUDE.md
